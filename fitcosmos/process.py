@@ -1,3 +1,11 @@
+"""
+TODO:
+
+    - make sure good guesses being used.
+    - do output
+    - docs
+
+"""
 import numpy as np
 import logging
 import ngmix
