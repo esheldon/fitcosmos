@@ -159,6 +159,12 @@ class MOFFitter(FitterBase):
         try:
             _fit_all_psfs(mbobs_list, self['mof']['psf'])
 
+            #for mbobs in mbobs_list:
+            #    for bobs in mbobs:
+            #        Tpsf=bobs[0].psf.gmix.get_T()
+            #        scale=bobs[0].psf.jacobian.scale
+            #        bobs.meta['T'] = Tpsf/scale**2
+
             mofc = self['mof']
             guess_from_priors=mofc.get('guess_from_priors',False)
             fitter = mof.MOFStamps(
@@ -207,7 +213,6 @@ class MOFFitter(FitterBase):
     def _get_dtype(self, npars, nband):
         n=Namer(front=self['mof']['model'])
         dt = [
-            ('image_id','i4'),
             ('fof_id','i4'), # fof id within image
             ('psf_g','f8',2),
             ('psf_T','f8'),
@@ -243,7 +248,6 @@ class MOFFitter(FitterBase):
         output=np.zeros(len(reslist), dtype=dt)
 
         meta=mbobs_example.meta
-        output['image_id'] = meta['image_id']
         output['fof_id'] = meta['fof_id']
 
         for i,res in enumerate(reslist):
@@ -260,4 +264,57 @@ class MOFFitter(FitterBase):
                     t[nname] = val
 
         return output
+
+def _fit_all_psfs(mbobs_list, psf_conf):
+    """
+    fit all psfs in the input observations
+    """
+    fitter=AllPSFFitter(mbobs_list, psf_conf)
+    fitter.go()
+
+class AllPSFFitter(object):
+    def __init__(self, mbobs_list, psf_conf):
+        self.mbobs_list=mbobs_list
+        self.psf_conf=psf_conf
+
+    def go(self):
+        for mbobs in self.mbobs_list:
+            for obslist in mbobs:
+                for obs in obslist:
+                    psf_obs = obs.get_psf()
+                    _fit_one_psf(psf_obs, self.psf_conf)
+
+def _fit_one_psf(obs, pconf):
+    Tguess=4.0*obs.jacobian.get_scale()**2
+
+    if 'coellip' in pconf['model']:
+        ngauss=ngmix.bootstrap.get_coellip_ngauss(pconf['model'])
+        runner=ngmix.bootstrap.PSFRunnerCoellip(
+            obs,
+            Tguess,
+            ngauss,
+            pconf['lm_pars'],
+        )
+
+
+    else:
+        runner=ngmix.bootstrap.PSFRunner(
+            obs,
+            pconf['model'],
+            Tguess,
+            pconf['lm_pars'],
+        )
+
+    runner.go(ntry=pconf['ntry'])
+
+    psf_fitter = runner.fitter
+    res=psf_fitter.get_result()
+    obs.update_meta_data({'fitter':psf_fitter})
+
+    if res['flags']==0:
+        gmix=psf_fitter.get_gmix()
+        obs.set_gmix(gmix)
+    else:
+        raise BootPSFFailure("failed to fit psfs: %s" % str(res))
+
 
