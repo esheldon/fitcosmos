@@ -1,0 +1,30 @@
+#!/usr/bin/env python
+
+import fitcosmos
+import argparse
+
+parser=argparse.ArgumentParser()
+parser.add_argument('--output',required=True)
+parser.add_argument('--fofs',required=True)
+parser.add_argument('meds',nargs='+')
+
+parser.add_argument(
+    '--start',
+    type=int,
+    help='first object to process',
+)
+parser.add_argument(
+    '--end',
+    type=int,
+    help='last object to process, inclusive',
+)
+
+
+def main():
+    args=parser.parse_args()
+
+    fitcosmos.process.process_fofs(args)
+
+if __name__=='__main__':
+    main()
+ 

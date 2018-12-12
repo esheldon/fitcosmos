@@ -1,0 +1,51 @@
+#!/usr/bin/env python
+
+import fitcosmos
+import argparse
+import mof
+import meds
+import yaml
+import fitsio
+
+parser=argparse.ArgumentParser()
+parser.add_argument('--conf',required=True)
+parser.add_argument('--plot',required=True)
+parser.add_argument('--output',required=True)
+parser.add_argument('meds',nargs='+')
+
+
+def main():
+    args=parser.parse_args()
+    assert 'meds' not in args.output
+
+    with open(args.conf) as fobj:
+        conf = yaml.load(fobj)
+        fof_conf = conf['fofs']
+
+    mlist=[]
+    for f in args.meds:
+        print('loading:',f)
+        mlist.append( meds.MEDS(f) )
+
+    print('getting fof groups')
+    nbr_data, fofs = fitcosmos.fofs.get_fofs(
+        mlist, fof_conf,
+    )
+
+    print('making a plot:',args.plot)
+    mof.fofs.plot_fofs(
+        mlist[0],
+        fofs,
+        plotfile=args.plot,
+        width=2000,
+        fof_type='filled circle',
+        fof_size=0.2,
+    )
+    print('writing:',args.output)
+    with fitsio.FITS(args.output,'rw',clobber=True) as fits:
+        fits.write(fofs,extname='fofs')
+        fits.write(nbr_data,extname='nbrs')
+
+if __name__=='__main__':
+    main()
+ 
