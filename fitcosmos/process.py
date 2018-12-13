@@ -1,9 +1,11 @@
 """
 TODO:
 
-    - make MEDS box size stuff pre-calculated in arcsec,
-      with typical DES psf taken into account (e.g. FWHM=1.2)
-    - make guesses in arcsec too (put guesser into this code don't use
+    - allow limiting to some max postage stamp size
+        - this means removing the entire group from fitting though
+        - need to deal with outputs, make sure these get outputs
+        - even though not fit
+    - make guesses in arcsec (put guesser into this code don't use
       default one in mof)
     - make sure good guesses being used.
     - do output
@@ -19,6 +21,7 @@ import yaml
 import esutil as eu
 
 from . import fitting
+from . import files
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +68,7 @@ class Processor(object):
         """
         w,=np.where(self.fofs['fofid'] == fofid)
         logger.debug('%d objects' % w.size)
+        assert w.size > 0,'no objects found for FoF id %d' % fofid
 
         indices=self.fofs['number'][w]-1
 
@@ -130,22 +134,30 @@ class Processor(object):
         """
         load FoF group data from the input file
         """
-        logger.info('loading fofs: %s' % self.args.fofs)
-        with fitsio.FITS(self.args.fofs) as fits:
-            #self.nbrs=fits['nbrs'][:]
-            self.fofs=fits['fofs'][:]
+        nbrs, fofs = files.load_fofs(self.args.fofs)
+        self.fofs = fofs
 
     def _set_fof_range(self):
         """
         set the FoF range to be processed
         """
+        nfofs = self.fofs['fofid'].max()+1
+        assert nfofs == np.unique(self.fofs['fofid']).size
+
         self.start=self.args.start
         self.end=self.args.end
 
         if self.start is None:
             self.start = 0
+
         if self.end is None:
-            self.end = self.mb_meds.mlist[0].size-1
+            self.end = nfofs-1
+
+        print('processing fof range:',self.start,self.end)
+        if self.start < 0 or self.end >= nfofs:
+            mess='FoF range: [%d,%d] out of bounds [%d,%d]'
+            mess = mess % (self.start,self.end,0,nfofs-1)
+            raise ValueError(mess)
 
     def _load_meds_files(self):
         """

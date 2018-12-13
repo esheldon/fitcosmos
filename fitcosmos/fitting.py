@@ -189,18 +189,18 @@ class MOFFitter(FitterBase):
                     break
 
             if res['flags'] != 0:
-                res['main_flags'] = procflags.OBJ_FAILURE,
-                res['main_flagstr'] = procflags.get_name(res['main_flags'])
+                res['main_flags'] = procflags.OBJ_FAILURE
+                res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
             else:
                 res['main_flags'] = 0
-                res['main_flagstr'] = procflags.get_name(0)
+                res['main_flagstr'] = procflags.get_flagname(0)
 
         except BootPSFFailure as err:
             epochs_data=None
             print(str(err))
             res={
                 'main_flags':procflags.PSF_FAILURE,
-                'main_flagstr':procflags.get_name(procflags.PSF_FAILURE),
+                'main_flagstr':procflags.get_flagname(procflags.PSF_FAILURE),
             }
 
         nobj = len(mbobs_list)
@@ -315,7 +315,7 @@ class MOFFitter(FitterBase):
         dt = self._get_dtype()
         st = np.zeros(nobj, dtype=dt)
         st['flags'] = procflags.NO_ATTEMPT
-        st['flagstr'] = procflags.get_name(procflags.NO_ATTEMPT)
+        st['flagstr'] = procflags.get_flagname(procflags.NO_ATTEMPT)
 
         n=self.namer
         st[n('flags')] = st['flags']
