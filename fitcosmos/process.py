@@ -1,6 +1,10 @@
 """
 TODO:
 
+    - make MEDS box size stuff pre-calculated in arcsec,
+      with typical DES psf taken into account (e.g. FWHM=1.2)
+    - make guesses in arcsec too (put guesser into this code don't use
+      default one in mof)
     - make sure good guesses being used.
     - do output
     - docs
@@ -12,6 +16,7 @@ import ngmix
 import ngmix.medsreaders
 import fitsio
 import yaml
+import esutil as eu
 
 from . import fitting
 
@@ -29,9 +34,21 @@ class Processor(object):
         self._set_fitter()
 
     def go(self):
+
+        olist=[]
         for fofid in range(self.start,self.end+1):
             logger.info('processing: %d:%d' % (fofid,self.end))
-            self._process_fof(fofid)
+            output = self._process_fof(fofid)
+            olist.append(output)
+
+        output = eu.numpy_util.combine_arrlist(olist)
+
+        self._write_output(output)
+
+    def _write_output(self, output):
+        logger.info('writing output: %s' % self.args.output)
+        with fitsio.FITS(self.args.output,'rw',clobber=True) as fits:
+            fits.write(output)
 
     def _process_fof(self, fofid):
         w,=np.where(self.fofs['fofid'] == fofid)
@@ -45,21 +62,21 @@ class Processor(object):
                 index,
                 weight_type='weight',
             )
-            mbobs.meta['fof_id'] = fofid
             for band,obslist in enumerate(mbobs):
                 m=self.mb_meds.mlist[band]
                 meta = {
                     #'Tsky': 2*m['flux_radius']**2,
                     'T': 2* (m['iso_radius'][index]*0.5)**2,
                     'flux': m['flux'][index],
-                    'fof_id':fofid,
                 }
 
                 obslist.meta.update(meta)
 
             mbobs_list.append( mbobs )
 
-            self.fitter.go(mbobs_list)
+        output = self.fitter.go(mbobs_list)
+        output['fof_id'] = fofid
+        return output
 
     def _set_rng(self):
         self.rng = np.random.RandomState(self.args.seed)

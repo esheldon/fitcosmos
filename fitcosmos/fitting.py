@@ -12,6 +12,7 @@ from ngmix.gmix import GMixModel
 from ngmix.gexceptions import BootPSFFailure, BootGalFailure
 
 from .util import Namer
+from . import procflags
 
 import mof
 
@@ -159,12 +160,6 @@ class MOFFitter(FitterBase):
         try:
             _fit_all_psfs(mbobs_list, self['mof']['psf'])
 
-            #for mbobs in mbobs_list:
-            #    for bobs in mbobs:
-            #        Tpsf=bobs[0].psf.gmix.get_T()
-            #        scale=bobs[0].psf.jacobian.scale
-            #        bobs.meta['T'] = Tpsf/scale**2
-
             mofc = self['mof']
             guess_from_priors=mofc.get('guess_from_priors',False)
             fitter = mof.MOFStamps(
@@ -187,35 +182,66 @@ class MOFFitter(FitterBase):
                 if res['flags']==0:
                     break
 
+            if res['flags'] != 0:
+                res['main_flags'] = procflags.OBJ_FAILURE,
+                res['main_flagstr'] = procflags.get_name(res['main_flags'])
+            else:
+                res['main_flags'] = 0
+                res['main_flagstr'] = procflags.get_name(0)
+
         except BootPSFFailure as err:
             print(str(err))
-            res={'flags':1}
+            res={
+                'main_flags':procflags.PSF_FAILURE,
+                'main_flagstr':procflags.get_name(procflags.PSF_FAILURE),
+            }
 
-        if res['flags'] != 0:
-            fitter=None
-            data=None
+        nobj = len(mbobs_list)
+
+        if res['main_flags'] != 0:
+            reslist=None
         else:
-            average_fof_shapes = self.get('average_fof_shapes',False)
-            if average_fof_shapes:
-                logger.debug('averaging fof shapes')
-                resavg=fitter.get_result_averaged_shapes()
-                data=self._get_output(mbobs_list[0],[resavg], fitter.nband)
-            else:
-                reslist=fitter.get_result_list()
-                data=self._get_output(mbobs_list[0], reslist, fitter.nband)
+            reslist=fitter.get_result_list()
 
-        if get_fitter:
-            return fitter, data
-        else:
-            return data
+        data=self._get_output(
+            nobj,
+            res,
+            reslist,
+        )
+
+        return data
 
 
-    def _get_dtype(self, npars, nband):
-        n=Namer(front=self['mof']['model'])
+    @property
+    def model(self):
+        """
+        model for fitting
+        """
+        return self['mof']['model']
+
+    @property
+    def npars(self):
+        """
+        number of pars we expect
+        """
+        return ngmix.gmix.get_model_npars(self.model) + self.nband-1
+
+    @property
+    def namer(self):
+        return Namer(front=self['mof']['model'])
+
+    def _get_dtype(self):
+        npars = self.npars
+        nband = self.nband
+
+        n=self.namer
         dt = [
+            ('flags','i4'),
+            ('flagstr','U11'),
             ('fof_id','i4'), # fof id within image
             ('psf_g','f8',2),
             ('psf_T','f8'),
+            (n('flags'),'i4'),
             (n('nfev'),'i4'),
             (n('s2n'),'f8'),
             (n('pars'),'f8',npars),
@@ -237,31 +263,44 @@ class MOFFitter(FitterBase):
             ]
         return dt
 
-    def _get_output(self, mbobs_example, reslist,nband):
+    def _get_struct(self, nobj):
+        dt = self._get_dtype()
+        st = np.zeros(nobj, dtype=dt)
+        st['flags'] = procflags.NO_ATTEMPT
+        st['flagstr'] = procflags.get_name(procflags.NO_ATTEMPT)
 
-        npars=reslist[0]['pars'].size
+        n=self.namer
+        st[n('flags')] = st['flags']
 
-        model=self['mof']['model']
-        n=Namer(front=model)
+        return st
 
-        dt=self._get_dtype(npars, nband)
-        output=np.zeros(len(reslist), dtype=dt)
+    def _get_output(self, nobj, main_res, reslist):
 
-        meta=mbobs_example.meta
-        output['fof_id'] = meta['fof_id']
+        output=self._get_struct(nobj)
 
-        for i,res in enumerate(reslist):
-            t=output[i] 
+        output['flags'] = main_res['main_flags']
+        output['flagstr'] = main_res['main_flagstr']
 
-            for name,val in res.items():
-                if name=='nband':
-                    continue
+        n=self.namer
+        if 'flags' in main_res:
+            output[n('flags')] = main_res['flags']
 
-                if 'psf' in name:
-                    t[name] = val
-                else:
-                    nname=n(name)
-                    t[nname] = val
+        # model flags will remain at NO_ATTEMPT
+        if main_res['main_flags'] == 0:
+
+
+            for i,res in enumerate(reslist):
+                t=output[i] 
+
+                for name,val in res.items():
+                    if name=='nband':
+                        continue
+
+                    if 'psf' in name:
+                        t[name] = val
+                    else:
+                        nname=n(name)
+                        t[nname] = val
 
         return output
 
