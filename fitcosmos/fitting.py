@@ -27,6 +27,7 @@ class FitterBase(dict):
         self.nband=nband
         self.rng=rng
         self.update(conf)
+        self._setup()
 
     def go(self, mbobs_list):
         """
@@ -88,6 +89,9 @@ class FitterBase(dict):
         return prior
 
     def _get_prior_generic(self, ppars):
+        """
+        get a prior object using the input specification
+        """
         ptype=ppars['type']
 
         if ptype=="flat":
@@ -160,6 +164,8 @@ class MOFFitter(FitterBase):
         try:
             _fit_all_psfs(mbobs_list, self['mof']['psf'])
 
+            epochs_data = self._get_epochs_output(mbobs_list)
+
             mofc = self['mof']
             guess_from_priors=mofc.get('guess_from_priors',False)
             fitter = mof.MOFStamps(
@@ -190,6 +196,7 @@ class MOFFitter(FitterBase):
                 res['main_flagstr'] = procflags.get_name(0)
 
         except BootPSFFailure as err:
+            epochs_data=None
             print(str(err))
             res={
                 'main_flags':procflags.PSF_FAILURE,
@@ -209,8 +216,14 @@ class MOFFitter(FitterBase):
             reslist,
         )
 
-        return data
+        return data, epochs_data
 
+    def _setup(self):
+        """
+        set some useful values
+        """
+        self.npars = self.get_npars()
+        self.npars_psf = self.get_npars_psf()
 
     @property
     def model(self):
@@ -219,16 +232,50 @@ class MOFFitter(FitterBase):
         """
         return self['mof']['model']
 
-    @property
-    def npars(self):
+    def get_npars(self):
         """
         number of pars we expect
         """
         return ngmix.gmix.get_model_npars(self.model) + self.nband-1
 
+    def get_npars_psf(self):
+        model=self['mof']['psf']['model']
+        return 6*ngmix.gmix.get_model_ngauss(model)
+
     @property
     def namer(self):
         return Namer(front=self['mof']['model'])
+
+    def _get_epochs_dtype(self):
+        dt = [
+            ('id','i8'),
+            ('band','i2'),
+            ('file_id','i4'),
+            ('psf_pars','f8',self.npars_psf),
+        ]
+        return dt
+
+    def _get_epochs_struct(self):
+        dt=self._get_epochs_dtype()
+        return np.zeros(1, dtype=dt)
+
+    def _get_epochs_output(self, mbobs_list):
+        elist=[]
+        for mbobs in mbobs_list:
+            for band, obslist in enumerate(mbobs):
+                for obs in obslist:
+                    meta=obs.meta
+                    edata = self._get_epochs_struct()
+                    edata['id'] = meta['id']
+                    edata['band'] = band
+                    edata['file_id'] = meta['file_id']
+                    psf_gmix = obs.psf.gmix
+                    edata['psf_pars'][0] = psf_gmix.get_full_pars()
+
+                    elist.append(edata)
+
+        edata = eu.numpy_util.combine_arrlist(elist)
+        return edata
 
     def _get_dtype(self):
         npars = self.npars
@@ -236,9 +283,10 @@ class MOFFitter(FitterBase):
 
         n=self.namer
         dt = [
+            ('id','i8'),
+            ('fof_id','i8'), # fof id within image
             ('flags','i4'),
             ('flagstr','U11'),
-            ('fof_id','i4'), # fof id within image
             ('psf_g','f8',2),
             ('psf_T','f8'),
             (n('flags'),'i4'),

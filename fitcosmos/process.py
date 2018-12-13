@@ -23,6 +23,9 @@ from . import fitting
 logger = logging.getLogger(__name__)
 
 class Processor(object):
+    """
+    class to process a set of observations.
+    """
     def __init__(self, args):
         self.args=args
 
@@ -34,23 +37,32 @@ class Processor(object):
         self._set_fitter()
 
     def go(self):
-
+        """
+        process the requested FoF groups
+        """
         olist=[]
+        elist=[]
+
         for fofid in range(self.start,self.end+1):
             logger.info('processing: %d:%d' % (fofid,self.end))
-            output = self._process_fof(fofid)
+            output, epochs_data = self._process_fof(fofid)
             olist.append(output)
+            if epochs_data is not None:
+                elist.append(epochs_data)
 
         output = eu.numpy_util.combine_arrlist(olist)
+        if len(elist) > 0:
+            epochs_data = eu.numpy_util.combine_arrlist(elist)
+        else:
+            epochs_data = None
 
-        self._write_output(output)
 
-    def _write_output(self, output):
-        logger.info('writing output: %s' % self.args.output)
-        with fitsio.FITS(self.args.output,'rw',clobber=True) as fits:
-            fits.write(output)
+        self._write_output(output, epochs_data)
 
     def _process_fof(self, fofid):
+        """
+        process single FoF group
+        """
         w,=np.where(self.fofs['fofid'] == fofid)
         logger.debug('%d objects' % w.size)
 
@@ -74,19 +86,40 @@ class Processor(object):
 
             mbobs_list.append( mbobs )
 
-        output = self.fitter.go(mbobs_list)
+        output, epochs_data = self.fitter.go(mbobs_list)
+        output['id'] = self.mb_meds.mlist[0]['id'][indices]
         output['fof_id'] = fofid
-        return output
+        return output, epochs_data
+
+
+    def _write_output(self, output, epochs_data):
+        """
+        write the output as well as information from the epochs
+        """
+        logger.info('writing output: %s' % self.args.output)
+        with fitsio.FITS(self.args.output,'rw',clobber=True) as fits:
+            fits.write(output, extname='model_fits')
+            if epochs_data is not None:
+                fits.write(epochs_data, extname='epochs_data')
 
     def _set_rng(self):
+        """
+        set the rng given the input seed
+        """
         self.rng = np.random.RandomState(self.args.seed)
 
     def _load_conf(self):
+        """
+        load the yaml config
+        """
         logger.info('loading config: %s' % self.args.config)
         with open(self.args.config) as fobj:
             self.config = yaml.load(fobj)
 
     def _set_fitter(self):
+        """
+        currently only MOF
+        """
         self.fitter = fitting.MOFFitter(
             self.config,
             self.mb_meds.nband,
@@ -94,12 +127,18 @@ class Processor(object):
         ) 
 
     def _load_fofs(self):
+        """
+        load FoF group data from the input file
+        """
         logger.info('loading fofs: %s' % self.args.fofs)
         with fitsio.FITS(self.args.fofs) as fits:
             #self.nbrs=fits['nbrs'][:]
             self.fofs=fits['fofs'][:]
 
     def _set_fof_range(self):
+        """
+        set the FoF range to be processed
+        """
         self.start=self.args.start
         self.end=self.args.end
 
@@ -109,11 +148,12 @@ class Processor(object):
             self.end = self.mb_meds.mlist[0].size-1
 
     def _load_meds_files(self):
+        """
+        load all MEDS files
+        """
         mlist=[]
         for f in self.args.meds:
             logger.info('loading meds: %s' % f)
             mlist.append( ngmix.medsreaders.NGMixMEDS(f) )
 
-        self.mb_meds = ngmix.medsreaders.MultiBandNGMixMEDS(
-            mlist,
-        )
+        self.mb_meds = ngmix.medsreaders.MultiBandNGMixMEDS(mlist)
