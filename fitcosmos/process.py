@@ -22,6 +22,7 @@ import esutil as eu
 
 from . import fitting
 from . import files
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +47,17 @@ class Processor(object):
         olist=[]
         elist=[]
 
+        tm0 = time.time()
+        nfofs = self.end-self.start+1
+
         for fofid in range(self.start,self.end+1):
             logger.info('processing: %d:%d' % (fofid,self.end))
+
+            tp = time.time()
             output, epochs_data = self._process_fof(fofid)
+            tp = time.time()-tp
+            logger.debug('time: %g' % tp)
+
             olist.append(output)
             if epochs_data is not None:
                 elist.append(epochs_data)
@@ -59,6 +68,9 @@ class Processor(object):
         else:
             epochs_data = None
 
+        tm = time.time()-tm0
+        print('total time: %g' % tm)
+        print('time per: %g' % (tm/nfofs))
 
         self._write_output(output, epochs_data)
 
@@ -81,9 +93,8 @@ class Processor(object):
             for band,obslist in enumerate(mbobs):
                 m=self.mb_meds.mlist[band]
                 meta = {
-                    #'Tsky': 2*m['flux_radius']**2,
-                    'T': 2* (m['iso_radius'][index]*0.5)**2,
-                    'flux': m['flux'][index],
+                    'Tsky': 2* (m['iso_radius_arcsec'][index]*0.5)**2,
+                    'flux': m['flux_auto'][index],
                 }
 
                 obslist.meta.update(meta)

@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+send in DES meds files for this
+"""
 
 import fitcosmos
 import argparse
@@ -6,6 +9,7 @@ import mof
 import meds
 import yaml
 import fitsio
+import numpy as np
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--conf',required=True)
@@ -13,6 +17,9 @@ parser.add_argument('--plot',required=True)
 parser.add_argument('--output',required=True)
 parser.add_argument('meds',nargs='+')
 
+parser.add_argument('--des-psf-fwhm',type=float,default=1.2)
+
+FWHM_FAC = 2*np.sqrt(2*np.log(2))
 
 def main():
     args=parser.parse_args()
@@ -25,7 +32,18 @@ def main():
     mlist=[]
     for f in args.meds:
         print('loading:',f)
+        assert 'des' in f.lower(),'send only DES meds for this task'
+
         mlist.append( meds.MEDS(f) )
+
+    rad = mlist[0]['iso_radius_arcsec']
+    psf_sigma = args.des_psf_fwhm/FWHM_FAC
+
+    rad = np.sqrt(rad**2 + psf_sigma**2)
+    rad_pixels = rad/0.263
+
+    for m in mlist:
+        m._cat['iso_radius'] = rad_pixels
 
     print('getting fof groups')
     nbr_data, fofs = fitcosmos.fofs.get_fofs(
