@@ -34,6 +34,18 @@ def get_split_dir(run):
         'splits',
     )
 
+def get_split_output(run, start, end, ext='fits'):
+    """
+    get the split output file
+    """
+    split_dir=get_split_dir(run)
+    fname = '%s-%06d-%06d.%s' % (run,start, end, ext)
+    return os.path.join(
+        split_dir,
+        fname,
+    )
+
+
 def get_script_dir(run):
     """
     directory for scripts
@@ -44,13 +56,13 @@ def get_script_dir(run):
         'scripts',
     )
 
-def get_script_path(run, isplit):
+def get_script_path(run, start, end):
     """
     directory for scripts
     """
     script_dir=get_script_dir(run)
 
-    fname='%s-%06d.sh' % (run, isplit)
+    fname = '%s-%06d-%06d.sh' % (run, start, end)
     return os.path.join(
         script_dir,
         fname,

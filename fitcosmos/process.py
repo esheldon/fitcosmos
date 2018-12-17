@@ -80,7 +80,7 @@ class Processor(object):
         process single FoF group
         """
         w,=np.where(self.fofs['fofid'] == fofid)
-        logger.debug('%d objects' % w.size)
+        logger.info('%d objects' % w.size)
         assert w.size > 0,'no objects found for FoF id %d' % fofid
 
         indices=self.fofs['number'][w]-1
