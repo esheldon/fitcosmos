@@ -23,6 +23,7 @@ import esutil as eu
 from . import fitting
 from . import files
 import time
+from . import vis
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,7 @@ class Processor(object):
                 m=self.mb_meds.mlist[band]
                 meta = {
                     'Tsky': 2* (m['iso_radius_arcsec'][index]*0.5)**2,
+                    #'Tsky': 0.1,
                     'flux': m['flux_auto'][index],
                 }
 
@@ -101,11 +103,22 @@ class Processor(object):
 
             mbobs_list.append( mbobs )
 
+        if self.args.save or self.args.show:
+            self._doplots(fofid, mbobs_list)
+
+
         output, epochs_data = self.fitter.go(mbobs_list)
         output['id'] = self.mb_meds.mlist[0]['id'][indices]
         output['fof_id'] = fofid
         return output, epochs_data
 
+    def _doplots(self, fofid, mbobs_list):
+        plt=vis.view_mbobs_list(mbobs_list, show=self.args.show)#, weight=True)
+        if self.args.save:
+            pltname='images-%06d.png' % fofid
+            plt.title='FoF id: %d' % fofid
+            logger.info('writing: %s' % pltname)
+            plt.write(pltname,dpi=300)
 
     def _write_output(self, output, epochs_data):
         """

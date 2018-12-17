@@ -163,11 +163,11 @@ class MOFFitter(FitterBase):
 
         try:
             _fit_all_psfs(mbobs_list, self['mof']['psf'])
+            _measure_all_psf_fluxes(mbobs_list)
 
             epochs_data = self._get_epochs_output(mbobs_list)
 
             mofc = self['mof']
-            guess_from_priors=mofc.get('guess_from_priors',False)
             fitter = mof.MOFStamps(
                 mbobs_list,
                 mofc['model'],
@@ -180,7 +180,6 @@ class MOFFitter(FitterBase):
                     mofc['model'],
                     self.rng,
                     prior=self.mof_prior,
-                    guess_from_priors=guess_from_priors,
                 )
                 fitter.go(guess)
 
@@ -211,7 +210,7 @@ class MOFFitter(FitterBase):
             reslist=fitter.get_result_list()
 
         data=self._get_output(
-            nobj,
+            mbobs_list,
             res,
             reslist,
         )
@@ -289,6 +288,10 @@ class MOFFitter(FitterBase):
             ('flagstr','U11'),
             ('psf_g','f8',2),
             ('psf_T','f8'),
+            ('psf_flux_flags','i4',nband),
+            ('psf_flux','f8',nband),
+            ('psf_flux_err','f8',nband),
+            ('psf_flux_s2n','f8',nband),
             (n('flags'),'i4'),
             (n('nfev'),'i4'),
             (n('s2n'),'f8'),
@@ -322,14 +325,18 @@ class MOFFitter(FitterBase):
 
         return st
 
-    def _get_output(self, nobj, main_res, reslist):
+    def _get_output(self, mbobs_list, main_res, reslist):
 
+        nband=self.nband
+        nobj = len(mbobs_list)
         output=self._get_struct(nobj)
 
         output['flags'] = main_res['main_flags']
         output['flagstr'] = main_res['main_flagstr']
 
         n=self.namer
+        pn=Namer(front='psf')
+
         if 'flags' in main_res:
             output[n('flags')] = main_res['flags']
 
@@ -339,6 +346,19 @@ class MOFFitter(FitterBase):
 
             for i,res in enumerate(reslist):
                 t=output[i] 
+                mbobs = mbobs_list[i]
+
+                for band,obslist in enumerate(mbobs):
+                    meta = obslist.meta
+
+                    if nband > 1:
+                        t['psf_flux_flags'][band] = meta['psf_flux_flags']
+                        for name in ('flux','flux_err','flux_s2n'):
+                            t[pn(name)][band] = meta[pn(name)]
+                    else:
+                        t['psf_flux_flags'] = meta['psf_flux_flags']
+                        for name in ('flux','flux_err','flux_s2n'):
+                            t[pn(name)] = meta[pn(name)]
 
                 for name,val in res.items():
                     if name=='nband':
@@ -358,6 +378,14 @@ def _fit_all_psfs(mbobs_list, psf_conf):
     """
     fitter=AllPSFFitter(mbobs_list, psf_conf)
     fitter.go()
+
+def _measure_all_psf_fluxes(mbobs_list):
+    """
+    fit all psfs in the input observations
+    """
+    fitter=AllPSFFluxFitter(mbobs_list)
+    fitter.go()
+
 
 class AllPSFFitter(object):
     def __init__(self, mbobs_list, psf_conf):
@@ -404,12 +432,43 @@ def _fit_one_psf(obs, pconf):
     else:
         raise BootPSFFailure("failed to fit psfs: %s" % str(res))
 
+class AllPSFFluxFitter(object):
+    def __init__(self, mbobs_list):
+        self.mbobs_list=mbobs_list
+
+    def go(self):
+        for mbobs in self.mbobs_list:
+            for obslist in mbobs:
+                meta=obslist.meta
+
+                res = self._fit_psf_flux(obslist)
+                meta['psf_flux_flags'] = res['flags']
+
+                for n in ('psf_flux','psf_flux_err','psf_flux_s2n'):
+                    meta[n] = res[n.replace('psf_','')]
+
+    def _fit_psf_flux(self, obslist):
+        fitter=ngmix.fitting.TemplateFluxFitter(
+            obslist,
+            do_psf=True,
+        )
+        fitter.go()
+
+        res=fitter.get_result()
+
+        if res['flags'] == 0 and res['flux_err'] > 0:
+            res['flux_s2n'] = res['flux']/res['flux_err']
+        else:
+            res['flux_s2n'] = -9999.0
+            raise BootPSFFailure("failed to fit psf fluxes: %s" % str(res))
+
+        return res
+
 def get_stamp_guesses(list_of_obs,
                       detband,
                       model,
                       rng,
-                      prior=None,
-                      guess_from_priors=False):
+                      prior=None):
     """
     get a guess based on metadata in the obs
 
@@ -428,9 +487,6 @@ def get_stamp_guesses(list_of_obs,
     npars_tot = nobj*npars_per
     guess = np.zeros(npars_tot)
 
-    #if guess_from_priors:
-    #    print('guessing from priors')
-
     pos_range = 0.005
     for i,mbo in enumerate(list_of_obs):
         detobslist = mbo[detband]
@@ -446,40 +502,30 @@ def get_stamp_guesses(list_of_obs,
         guess[beg+0] = rng.uniform(low=-pos_range, high=pos_range)
         guess[beg+1] = rng.uniform(low=-pos_range, high=pos_range)
 
-        if guess_from_priors:
-            pguess=prior.sample()
-            # we already guessed the location
-            pguess=pguess[2:]
-            n=pguess.size
-            start=beg+2
-            end=start+n
-            guess[start:end] = pguess
+        # always arbitrary guess for shape
+        guess[beg+2] = rng.uniform(low=-0.05, high=0.05)
+        guess[beg+3] = rng.uniform(low=-0.05, high=0.05)
+
+        guess[beg+4] = T*(1.0 + rng.uniform(low=-0.05, high=0.05))
+
+        # arbitrary guess for fracdev
+        if model=='bdf':
+            guess[beg+5] = rng.uniform(low=0.4,high=0.6)
+            flux_start=6
         else:
-            # always arbitrary guess for shape
-            guess[beg+2] = rng.uniform(low=-0.05, high=0.05)
-            guess[beg+3] = rng.uniform(low=-0.05, high=0.05)
+            flux_start=5
 
-            guess[beg+4] = T*(1.0 + rng.uniform(low=-0.05, high=0.05))
+        for band, obslist in enumerate(mbo):
+            obslist=mbo[band]
+            scale = obslist[0].jacobian.scale
+            band_meta=obslist.meta
 
-            # arbitrary guess for fracdev
-            if model=='bdf':
-                guess[beg+5] = rng.uniform(low=0.4,high=0.6)
-                flux_start=6
-            else:
-                flux_start=5
+            # note we take out scale**2 in DES images when
+            # loading from MEDS so this isn't needed
+            flux=band_meta['psf_flux']
+            flux_guess=flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
-            #for band in xrange(nband):
-            for band, obslist in enumerate(mbo):
-                obslist=mbo[band]
-                scale = obslist[0].jacobian.scale
-                meta=obslist.meta
-
-                # note we take out scale**2 in DES images when
-                # loading from MEDS so this isn't needed
-                flux=meta['flux']*scale**2
-                flux_guess=flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
-
-                guess[beg+flux_start+band] = flux_guess
+            guess[beg+flux_start+band] = flux_guess
 
     return guess
 

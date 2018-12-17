@@ -8,6 +8,8 @@ parser.add_argument('--seed',type=int,required=True)
 parser.add_argument('--config',required=True)
 parser.add_argument('--output',required=True)
 parser.add_argument('--fofs',required=True)
+parser.add_argument('--show',action='store_true',help='plot images')
+parser.add_argument('--save',action='store_true',help='save a plot of images')
 parser.add_argument('meds',nargs='+')
 
 parser.add_argument(

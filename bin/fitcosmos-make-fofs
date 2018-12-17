@@ -10,6 +10,7 @@ import meds
 import yaml
 import fitsio
 import numpy as np
+import esutil as eu
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--conf',required=True)
@@ -17,7 +18,7 @@ parser.add_argument('--plot',required=True)
 parser.add_argument('--output',required=True)
 parser.add_argument('meds',nargs='+')
 
-parser.add_argument('--des-psf-fwhm',type=float,default=1.2)
+parser.add_argument('--des-psf-fwhm',type=float,default=0.9)
 
 FWHM_FAC = 2*np.sqrt(2*np.log(2))
 
@@ -42,8 +43,11 @@ def main():
     rad = np.sqrt(rad**2 + psf_sigma**2)
     rad_pixels = rad/0.263
 
+    add_dt=[('iso_radius','f4')]
     for m in mlist:
-        m._cat['iso_radius'] = rad_pixels
+        newcat=eu.numpy_util.add_fields(m._cat, add_dt)
+        newcat['iso_radius'] = rad_pixels
+        m._cat = newcat
 
     print('getting fof groups')
     nbr_data, fofs = fitcosmos.fofs.get_fofs(
