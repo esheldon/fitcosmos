@@ -65,7 +65,7 @@ class FitterBase(dict):
         if conf['model']=='bdf':
             assert 'fracdev' in ppars,"set fracdev prior for bdf model"
             fp = ppars['fracdev']
-            assert fp['type'] == 'normal','only normal prior supported for fracdev'
+            assert 'normal' in fp['type'],'only normal type priors supported for fracdev'
 
             fracdev_prior = self._get_prior_generic(fp)
 
@@ -104,6 +104,15 @@ class FitterBase(dict):
             prior = ngmix.priors.Normal(
                 ppars['mean'],
                 ppars['sigma'],
+                rng=self.rng,
+            )
+
+        elif ptype=='truncated-normal':
+            prior = ngmix.priors.TruncatedGaussian(
+                mean=ppars['mean'],
+                sigma=ppars['sigma'],
+                minval=ppars['minval'],
+                maxval=ppars['maxval'],
                 rng=self.rng,
             )
 
