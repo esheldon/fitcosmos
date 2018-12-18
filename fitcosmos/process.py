@@ -84,6 +84,7 @@ class Processor(object):
                 index,
                 weight_type='weight',
             )
+            #self._set_weight(mbobs, index)
             for band,obslist in enumerate(mbobs):
                 m=self.mb_meds.mlist[band]
                 meta = {
@@ -117,6 +118,41 @@ class Processor(object):
         output['mag_auto'] = m['mag_auto'][indices]
         output['fof_id'] = fofid
         return output, epochs_data
+
+    def _set_weight(self, mbobs, index):
+        hst_band=4
+        fwhm=0.9
+        sigma=fwhm/2.35
+        exrad=3*sigma
+        for band,obslist in enumerate(mbobs):
+            m=self.mb_meds.mlist[band]
+            rad = m['iso_radius_arcsec'][index]*3.0
+            if band!=hst_band:
+                #rad = np.sqrt(rad**2 + 0.4**2)
+                rad = np.sqrt(rad**2 + exrad**2)
+
+                for obs in obslist:
+                    imshape=obs.image.shape
+                    scale=obs.jacobian.scale
+                    rad_pix = rad/scale
+                    rad_pix2 = rad_pix**2
+
+                    rows, cols = np.mgrid[
+                        0:imshape[0],
+                        0:imshape[1],
+                    ]
+                    cen = (np.array(imshape)-1.0)/2.0
+                    rows = rows.astype('f4') - cen[0]
+                    cols = cols.astype('f4') - cen[1]
+                    rad2 = rows**2 + cols**2
+                    w=np.where(rad2 > rad_pix2)
+                    if w[0].size > 0:
+                        twt = obs.weight.copy()
+                        twt[w] = 0.0
+                        obs.weight = twt
+
+
+
 
     def _doplots(self, fofid, mbobs_list):
         plt=vis.view_mbobs_list(mbobs_list, show=self.args.show)#, weight=True)
