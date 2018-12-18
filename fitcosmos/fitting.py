@@ -283,6 +283,9 @@ class MOFFitter(FitterBase):
         n=self.namer
         dt = [
             ('id','i8'),
+            ('ra','f8'),
+            ('dec','f8'),
+            ('flux_auto','f4'),
             ('fof_id','i8'), # fof id within image
             ('flags','i4'),
             ('flagstr','U11'),
