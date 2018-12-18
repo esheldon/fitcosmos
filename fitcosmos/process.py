@@ -90,9 +90,17 @@ class Processor(object):
                     'Tsky': 2* (m['iso_radius_arcsec'][index]*0.5)**2,
                     #'Tsky': 0.1,
                     'flux': m['flux_auto'][index],
+                    'magzp_ref': self.magzp_refs[band],
                 }
 
                 obslist.meta.update(meta)
+
+                for obs in obslist:
+                    # fudge for ngmix working in surface brightness
+                    pixel_scale2 = obs.jacobian.get_det()
+                    pixel_scale4 = pixel_scale2*pixel_scale2
+                    obs.image *= 1/pixel_scale2
+                    obs.weight *= pixel_scale4
 
             mbobs_list.append( mbobs )
 
@@ -106,6 +114,7 @@ class Processor(object):
         output['ra'] = m['ra'][indices]
         output['dec'] = m['dec'][indices]
         output['flux_auto'] = m['flux_auto'][indices]
+        output['mag_auto'] = m['mag_auto'][indices]
         output['fof_id'] = fofid
         return output, epochs_data
 
@@ -190,3 +199,8 @@ class Processor(object):
             mlist.append( ngmix.medsreaders.NGMixMEDS(f) )
 
         self.mb_meds = ngmix.medsreaders.MultiBandNGMixMEDS(mlist)
+
+        self.magzp_refs = []
+        for m in self.mb_meds.mlist:
+            meta=m.get_meta()
+            self.magzp_refs.append(meta['magzp_ref'][0])
