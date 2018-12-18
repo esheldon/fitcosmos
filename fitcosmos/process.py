@@ -50,7 +50,7 @@ class Processor(object):
             tp = time.time()
             output, epochs_data = self._process_fof(fofid)
             tp = time.time()-tp
-            logger.debug('time: %g' % tp)
+            logger.info('FoF time: %g' % tp)
 
             olist.append(output)
             if epochs_data is not None:
