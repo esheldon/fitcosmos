@@ -295,6 +295,7 @@ class MOFFitter(FitterBase):
             ('ra','f8'),
             ('dec','f8'),
             ('flux_auto','f4'),
+            ('mag_auto','f4'),
             ('fof_id','i8'), # fof id within image
             ('flags','i4'),
             ('flagstr','U11'),
@@ -302,6 +303,7 @@ class MOFFitter(FitterBase):
             ('psf_T','f8'),
             ('psf_flux_flags','i4',nband),
             ('psf_flux','f8',nband),
+            ('psf_mag','f8',nband),
             ('psf_flux_err','f8',nband),
             ('psf_flux_s2n','f8',nband),
             (n('flags'),'i4'),
@@ -315,6 +317,7 @@ class MOFFitter(FitterBase):
             (n('T_err'),'f8'),
             (n('T_ratio'),'f8'),
             (n('flux'),'f8',nband),
+            (n('mag'),'f8',nband),
             (n('flux_cov'),'f8',(nband,nband)),
             (n('flux_err'),'f8',nband),
         ]
@@ -367,10 +370,20 @@ class MOFFitter(FitterBase):
                         t['psf_flux_flags'][band] = meta['psf_flux_flags']
                         for name in ('flux','flux_err','flux_s2n'):
                             t[pn(name)][band] = meta[pn(name)]
+
+                        tflux = t[pn('flux')][band].clip(min=0.001)
+                        t[pn('mag')][band] = meta['magzp_ref']-2.5*np.log10(tflux)
+
+
                     else:
                         t['psf_flux_flags'] = meta['psf_flux_flags']
                         for name in ('flux','flux_err','flux_s2n'):
                             t[pn(name)] = meta[pn(name)]
+
+                        tflux = t[pn('flux')].clip(min=0.001)
+                        t[pn('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
+
+
 
                 for name,val in res.items():
                     if name=='nband':
@@ -381,6 +394,15 @@ class MOFFitter(FitterBase):
                     else:
                         nname=n(name)
                         t[nname] = val
+
+                for band,obslist in enumerate(mbobs):
+                    meta = obslist.meta
+                    if nband > 1:
+                        tflux = t[n('flux')][band].clip(min=0.001)
+                        t[n('mag')][band] = meta['magzp_ref']-2.5*np.log10(tflux)
+                    else:
+                        tflux = t[n('flux')].clip(min=0.001)
+                        t[n('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
 
         return output
 
