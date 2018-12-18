@@ -1,15 +1,8 @@
 """
 TODO:
 
-    - allow limiting to some max postage stamp size
-        - this means removing the entire group from fitting though
-        - need to deal with outputs, make sure these get outputs
-        - even though not fit
-    - make guesses in arcsec (put guesser into this code don't use
-      default one in mof)
-    - make sure good guesses being used.
-    - do output
-    - docs
+    - more outputs to save from meds file
+    - make sure good T guesses being used.
 
 """
 import numpy as np
@@ -107,8 +100,12 @@ class Processor(object):
             self._doplots(fofid, mbobs_list)
 
 
+        m = self.mb_meds.mlist[0]
         output, epochs_data = self.fitter.go(mbobs_list)
-        output['id'] = self.mb_meds.mlist[0]['id'][indices]
+        output['id'] = m['id'][indices]
+        output['ra'] = m['ra'][indices]
+        output['dec'] = m['dec'][indices]
+        output['flux_auto'] = m['flux_auto'][indices]
         output['fof_id'] = fofid
         return output, epochs_data
 
