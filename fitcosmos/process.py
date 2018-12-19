@@ -73,7 +73,7 @@ class Processor(object):
         process single FoF group
         """
         w,=np.where(self.fofs['fofid'] == fofid)
-        logger.info('FoF has %d objects' % w.size)
+        logger.info('FoF size: %d' % w.size)
         assert w.size > 0,'no objects found for FoF id %d' % fofid
 
         indices=self.fofs['number'][w]-1
@@ -134,7 +134,8 @@ class Processor(object):
 
             for obs in obslist:
                 imshape=obs.image.shape
-                scale=obs.jacobian.scale
+                jac = obs.jacobian
+                scale = jac.scale
                 rad_pix = rad/scale
                 rad_pix2 = rad_pix**2
 
@@ -142,7 +143,8 @@ class Processor(object):
                     0:imshape[0],
                     0:imshape[1],
                 ]
-                cen = (np.array(imshape)-1.0)/2.0
+                #cen = (np.array(imshape)-1.0)/2.0
+                cen = jac.cen
                 rows = rows.astype('f4') - cen[0]
                 cols = cols.astype('f4') - cen[1]
                 rad2 = rows**2 + cols**2
