@@ -78,46 +78,100 @@ class Processor(object):
 
         indices=self.fofs['number'][w]-1
 
-        mbobs_list=[]
-        for index in indices:
-            mbobs=self.mb_meds.get_mbobs(
-                index,
-                weight_type='weight',
-            )
-            self._set_weight(mbobs, index)
-            for band,obslist in enumerate(mbobs):
-                m=self.mb_meds.mlist[band]
-                meta = {
-                    'Tsky': 2* (m['iso_radius_arcsec'][index]*0.5)**2,
-                    #'Tsky': 0.1,
-                    'flux': m['flux_auto'][index],
-                    'magzp_ref': self.magzp_refs[band],
-                }
-
-                obslist.meta.update(meta)
-
-                for obs in obslist:
-                    # fudge for ngmix working in surface brightness
-                    pixel_scale2 = obs.jacobian.get_det()
-                    pixel_scale4 = pixel_scale2*pixel_scale2
-                    obs.image *= 1/pixel_scale2
-                    obs.weight *= pixel_scale4
-
-            mbobs_list.append( mbobs )
+        logger.debug('loading data')
+        mbobs_list = self._get_fof_mbobs_list(indices)
 
         if self.args.save or self.args.show:
             self._doplots(fofid, mbobs_list)
 
+        logger.debug('doing fits')
+        output, epochs_data = self.fitter.go(mbobs_list)
+
+        self._add_extra_outputs(indices, output, fofid)
+        return output, epochs_data
+
+    def _add_extra_outputs(self, indices, output, fofid):
 
         m = self.mb_meds.mlist[0]
-        output, epochs_data = self.fitter.go(mbobs_list)
         output['id'] = m['id'][indices]
         output['ra'] = m['ra'][indices]
         output['dec'] = m['dec'][indices]
         output['flux_auto'] = m['flux_auto'][indices]
         output['mag_auto'] = m['mag_auto'][indices]
         output['fof_id'] = fofid
-        return output, epochs_data
+
+    def _get_fof_mbobs_list(self, indices):
+        """
+        load the mbobs_list for the input FoF group list
+        """
+        mbobs_list=[]
+        for index in indices:
+            mbobs = self._get_mbobs(index)
+            mbobs_list.append(mbobs)
+
+        return mbobs_list
+
+    def _get_mbobs(self, index):
+        mbobs=self.mb_meds.get_mbobs(
+            index,
+            weight_type='weight',
+        )
+
+        if self.config['keep_best_epoch']:
+            mbobs = self._get_best_epochs(index, mbobs)
+
+        self._set_weight(mbobs, index)
+
+        for band,obslist in enumerate(mbobs):
+            m=self.mb_meds.mlist[band]
+            meta = {
+                'Tsky': 2* (m['iso_radius_arcsec'][index]*0.5)**2,
+                #'Tsky': 0.1,
+                'flux': m['flux_auto'][index],
+                'magzp_ref': self.magzp_refs[band],
+            }
+
+            obslist.meta.update(meta)
+
+            for obs in obslist:
+                # fudge for ngmix working in surface brightness
+                pixel_scale2 = obs.jacobian.get_det()
+                pixel_scale4 = pixel_scale2*pixel_scale2
+                obs.image *= 1/pixel_scale2
+                obs.weight *= pixel_scale4
+
+        return mbobs
+
+    def _get_best_epochs(self, index, mbobs):
+        """
+        just keep the best epoch if there are more than one
+
+        this is good when using coadds and more than one epoch
+        means overlap
+        """
+        new_mbobs=ngmix.MultiBandObsList()
+        new_mbobs.meta.update(mbobs.meta)
+
+        for band,obslist in enumerate(mbobs):
+            nepoch=len(obslist)
+            if nepoch > 1:
+
+                mess='    obj %d band %d keeping best of %d epochs'
+                logger.debug(mess % (index, band,nepoch))
+
+                wts=np.array([ obs.weight.sum() for obs in obslist])
+                logger.debug('    weights: %s' % str(wts))
+                ibest=wts.argmax()
+                keep_obs = obslist[ibest]
+
+                new_obslist=ngmix.ObsList()
+                new_obslist.meta.update(obslist.meta)
+                new_obslist.append(keep_obs)
+            else:
+                new_obslist = obslist
+
+            new_mbobs.append(new_obslist)
+        return new_mbobs
 
     def _set_weight(self, mbobs, index):
         hst_band=4
@@ -222,7 +276,7 @@ class Processor(object):
         if self.end is None:
             self.end = nfofs-1
 
-        print('processing fof range:',self.start,self.end)
+        logger.info('processing fof range: %d:%d' % (self.start,self.end))
         if self.start < 0 or self.end >= nfofs:
             mess='FoF range: [%d,%d] out of bounds [%d,%d]'
             mess = mess % (self.start,self.end,0,nfofs-1)
