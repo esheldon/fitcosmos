@@ -5,7 +5,6 @@ send in DES meds files for this
 
 import fitcosmos
 import argparse
-import mof
 import meds
 import yaml
 import fitsio
@@ -54,7 +53,7 @@ def main():
     )
 
     print('making a plot:',args.plot)
-    mof.fofs.plot_fofs(
+    fitcosmos.fofs.plot_fofs(
         m,
         fofs,
         plotfile=args.plot,
