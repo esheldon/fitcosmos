@@ -16,7 +16,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument('--conf',required=True)
 parser.add_argument('--plot',required=True)
 parser.add_argument('--output',required=True)
-parser.add_argument('meds',nargs='+')
+parser.add_argument('meds')
 
 parser.add_argument('--des-psf-fwhm',type=float,default=0.9)
 
@@ -30,33 +30,32 @@ def main():
         conf = yaml.load(fobj)
         fof_conf = conf['fofs']
 
-    mlist=[]
-    for f in args.meds:
-        print('loading:',f)
-        assert 'des' in f.lower(),'send only DES meds for this task'
+    print('loading:',args.meds)
+    #assert 'des' in args.meds.lower(),'send only DES meds for this task'
 
-        mlist.append( meds.MEDS(f) )
+    m = meds.MEDS(args.meds)
 
-    rad = mlist[0]['iso_radius_arcsec']
+    # should be in arcsec
+    radcol = fof_conf['radius_column']
+    assert 'arcsec' in radcol,'expected units of arcsec'
+    rad = m[radcol]
+
+    # should be in arcsec
     psf_sigma = args.des_psf_fwhm/FWHM_FAC
 
     rad = np.sqrt(rad**2 + psf_sigma**2)
-    rad_pixels = rad/0.263
 
-    add_dt=[('iso_radius','f4')]
-    for m in mlist:
-        newcat=eu.numpy_util.add_fields(m._cat, add_dt)
-        newcat['iso_radius'] = rad_pixels
-        m._cat = newcat
+    m._cat[radcol] = rad
 
     print('getting fof groups')
     nbr_data, fofs = fitcosmos.fofs.get_fofs(
-        mlist, fof_conf,
+        m,
+        fof_conf,
     )
 
     print('making a plot:',args.plot)
     mof.fofs.plot_fofs(
-        mlist[0],
+        m,
         fofs,
         plotfile=args.plot,
         width=2000,
