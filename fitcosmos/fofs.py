@@ -100,8 +100,6 @@ class MEDSNbrs(object):
         for mindex in prange(self.meds.size):
             nbrs = self.check_mindex(mindex)
 
-            nbrs = np.unique(nbrs)
-
             #add to final list
             for nbr in nbrs:
                 nbrs_data.append((self.meds['number'][mindex],nbr))
@@ -114,6 +112,52 @@ class MEDSNbrs(object):
         return nbrs_data
 
     def check_mindex(self,mindex):
+        m = self.meds
+
+        #check that current gal has OK stamp, or return bad crap
+        if (m['orig_start_row'][mindex,0] == -9999
+                or m['orig_start_col'][mindex,0] == -9999):
+
+            nbr_numbers = np.array([-1],dtype=int)
+            return nbr_numbers
+
+        q, = np.where(
+            (self.l[mindex] < self.r)
+            &
+            (self.r[mindex] > self.l)
+        )
+        if q.size > 0:
+            qt, = np.where(
+                (self.t[mindex] > self.b[q])
+                &
+                (self.b[mindex] < self.t[q])
+            )
+            q = q[qt]
+            if q.size > 0:
+               # remove dups and crap
+               qt, = np.where(
+                   (m['number'][mindex] != m['number'][q])
+                   &
+                   (m['orig_start_row'][q,0] != -9999)
+                   & (m['orig_start_col'][q,0] != -9999)
+               )
+               q = q[qt]
+
+        nbr_numbers = m['number'][q]
+        if nbr_numbers.size > 0:
+            nbr_numbers = np.unique(nbr_numbers)
+            inds = nbr_numbers-1
+            q, = np.where((m['orig_start_row'][inds,0] != -9999) & (m['orig_start_col'][inds,0] != -9999))
+            nbr_numbers = nbr_numbers[q]
+
+
+        #if have stuff return unique else return -1
+        if nbr_numbers.size == 0:
+            nbr_numbers = np.array([-1],dtype=int)
+
+        return nbr_numbers
+
+    def check_mindex_old(self,mindex):
         m = self.meds
 
         #check that current gal has OK stamp, or return bad crap
@@ -157,6 +201,7 @@ class MEDSNbrs(object):
             nbr_numbers = np.unique(nbr_numbers)
 
         return nbr_numbers
+
 
 class NbrsFoF(object):
     def __init__(self,nbrs_data):
@@ -262,8 +307,8 @@ def plot_fofs(m,
               "available")
         return
 
-    x = m['orig_col'][:,0]
-    y = m['orig_row'][:,0]
+    x = m['ra']
+    y = m['dec']
 
     hd=eu.stat.histogram(fof['fofid'], more=True)
     wlarge,=np.where(hd['hist'] >= minsize)

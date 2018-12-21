@@ -75,7 +75,7 @@ def PBar(iterable, desc='', total=None, leave=True, file=sys.stderr,
 
 def prange(*args, **kwargs):
     """
-    A shortcut for writing PBar(range()) on py3 or Pbar(range()) on py2
+    A shortcut for writing PBar(range(...))
 
     e.g.
 
