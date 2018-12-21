@@ -109,7 +109,7 @@ def get_condor_script(run, icondor):
     """
     condor_dir=get_condor_dir(run)
 
-    fname = '%s-%02d.condor' % (run, icondor)
+    fname = '%s-%03d.condor' % (run, icondor)
     return os.path.join(
         condor_dir,
         fname,
