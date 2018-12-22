@@ -13,12 +13,14 @@ import os
 import numpy as np
 import yaml
 import logging
+import fitsio
 from . import split
 from . import files
+from .files import StagedOutFile
 
 logger = logging.getLogger(__name__)
 
-class BatchMakerBase(dict):
+class BatchBase(dict):
     def __init__(self, args):
         self.args=args
 
@@ -35,6 +37,9 @@ class BatchMakerBase(dict):
         self._make_dirs()
 
     def go(self):
+        """
+        write for all FoF groups
+        """
         num_fofs = self.fofs['fofid'].max()
         fof_splits = split.get_splits(num_fofs, self['chunksize'])
 
@@ -43,18 +48,16 @@ class BatchMakerBase(dict):
             self._write_split(isplit, fof_split)
 
     def _make_dirs(self):
-        dir=files.get_split_dir(self['run'])
-        try:
-            os.makedirs(dir)
-        except:
-            pass
-
-        dir=files.get_script_dir(self['run'])
-        try:
-            os.makedirs(dir)
-        except:
-            pass
-
+        dirs = [
+            files.get_split_dir(self['run']),
+            files.get_script_dir(self['run']),
+            files.get_collated_dir(self['run']),
+        ]
+        for d in dirs:
+            try:
+                os.makedirs(d)
+            except:
+                pass
 
     def _write_split(self,isplit,fof_split):
         raise NotImplementedError('implement in child class')
@@ -79,7 +82,7 @@ class BatchMakerBase(dict):
         if self.args.missing and os.path.exists(output_file):
             if os.path.exists(fname):
                 os.remove(fname)
-                return
+            return
 
         d={}
         d['seed'] = self._get_seed()
@@ -118,19 +121,82 @@ class BatchMakerBase(dict):
     def _set_rng(self):
         self.rng = np.random.RandomState(self['seed'])
 
-class ShellBatchMaker(BatchMakerBase):
+class ShellBatch(BatchBase):
     """
     just write out the scripts, no submit files
     """
     def _write_split(self, isplit, fof_split):
         self._write_script(isplit, fof_split)
 
-class WQBatchMaker(ShellBatchMaker):
+class Collator(BatchBase):
+    def __init__(self, args):
+        self.args=args
+
+        self['fof_file'] = os.path.abspath(args.fofs)
+        self['fit_config'] = 'do not need'
+
+        self._load_config()
+        self._load_fofs()
+        self._make_dirs()
+
+    def go(self):
+        """
+        collate all the splits to a single file
+        """
+        output_file=files.get_collated_file(self['run'])
+        logger.info('writing collated file: %s' % output_file)
+
+        num_fofs = self.fofs['fofid'].max()
+        fof_splits = split.get_splits(num_fofs, self['chunksize'])
+        nsplit = len(fof_splits)
+
+        tmpdir = files.get_tempdir()
+        with StagedOutFile(output_file,tmpdir=tmpdir) as sf:
+            with fitsio.FITS(sf.path,'rw',clobber=True) as fits:
+                for isplit,fof_split in enumerate(fof_splits):
+
+                    start, end = fof_split
+
+                    split_file = files.get_split_output(
+                        self['run'],
+                        start,
+                        end,
+                        ext='fits',
+                    )
+
+                    logger.info('%d/%d %s: %s' % (isplit,nsplit,
+                                                  fof_split,split_file))
+
+                    with fitsio.FITS(split_file) as fitsin:
+                        model_fits=fitsin['model_fits'][:]
+                        epochs_data=fitsin['epochs_data'][:]
+
+                        if isplit==0:
+                            fits.write(model_fits, extname='model_fits')
+                            fits.write(epochs_data, extname='epochs_data')
+                        else:
+                            fits['model_fits'].append(model_fits)
+                            fits['epochs_data'].append(epochs_data)
+
+
+    def _make_dirs(self):
+        dirs = [
+            files.get_collated_dir(self['run']),
+        ]
+        for d in dirs:
+            try:
+                os.makedirs(d)
+            except:
+                pass
+
+
+
+class WQBatch(ShellBatch):
     """
     just write out the scripts, no submit files
     """
     def _write_split(self, isplit, fof_split):
-        super(WQBatchMaker,self)._write_split(isplit, fof_split)
+        super(WQBatch,self)._write_split(isplit, fof_split)
         self._write_wq_script(isplit, fof_split)
 
     def _write_wq_script(self, isplit, fof_split):
@@ -153,7 +219,7 @@ class WQBatchMaker(ShellBatchMaker):
         if self.args.missing and os.path.exists(output_file):
             if os.path.exists(wq_file):
                 os.remove(wq_file)
-                return
+            return
 
         logger.info('wq script: %s' % wq_file)
 
@@ -166,7 +232,7 @@ class WQBatchMaker(ShellBatchMaker):
         with open(wq_file,'w') as fobj:
             fobj.write(text)
 
-class CondorBatchMaker(BatchMakerBase):
+class CondorBatch(BatchBase):
     """
     just write out the scripts, no submit files
     """
@@ -230,18 +296,16 @@ class CondorBatchMaker(BatchMakerBase):
         fobj.write(job)
 
     def _make_dirs(self):
-        dir=files.get_split_dir(self['run'])
-        try:
-            os.makedirs(dir)
-        except:
-            pass
-
-        dir=files.get_condor_dir(self['run'])
-        print('condor dir:',dir)
-        try:
-            os.makedirs(dir)
-        except:
-            pass
+        dirs = [
+            files.get_split_dir(self['run']),
+            files.get_condor_dir(self['run']),
+            files.get_collated_dir(self['run']),
+        ]
+        for d in dirs:
+            try:
+                os.makedirs(d)
+            except:
+                pass
 
     def _write_master(self):
         """

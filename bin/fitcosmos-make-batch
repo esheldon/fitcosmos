@@ -20,11 +20,11 @@ def main():
     fitcosmos.util.setup_logging(args.loglevel)
 
     if args.system=='wq':
-        maker=fitcosmos.batch.WQBatchMaker(args)
+        maker=fitcosmos.batch.WQBatch(args)
     elif args.system=='shell':
-        maker=fitcosmos.batch.ShellBatchMaker(args)
+        maker=fitcosmos.batch.ShellBatch(args)
     elif args.system=='condor':
-        maker=fitcosmos.batch.CondorBatchMaker(args)
+        maker=fitcosmos.batch.CondorBatch(args)
     else:
         raise ValueError('system should be "wq" or "shell"')
 
