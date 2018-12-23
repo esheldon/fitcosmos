@@ -1,0 +1,85 @@
+#!/usr/bin/env python
+
+import os
+import yaml
+import navy
+import fitsio
+import fitcosmos
+from fitcosmos import files, split
+import argparse
+
+parser=argparse.ArgumentParser()
+parser.add_argument('--run-config',required=True)
+parser.add_argument('--fofs',required=True)
+
+def main():
+    args=parser.parse_args()
+
+    def get_data(fname):
+        print('reading:',fname)
+        with fitsio.FITS(fname) as fits:
+            model_fits = fits['model_fits'][:]
+            epochs_data = fits['epochs_data'][:]
+        return model_fits, epochs_data
+
+    if navy.rank == navy.ADMIRAL:
+
+        with open(args.run_config) as fobj:
+            config=yaml.load(fobj)
+
+        bname=os.path.basename(args.run_config)
+        run = bname.replace('.yaml','')
+
+        output_file=files.get_collated_file(run)
+        files.makedir_fromfile(output_file)
+
+        print('will write to:',output_file)
+
+        nbrs,fofs=files.load_fofs(args.fofs)
+        num_fofs = fofs['fofid'].max()
+        fof_splits = split.get_splits(num_fofs, config['chunksize'])
+        flist=[]
+        for start, end in fof_splits:
+            flist.append( 
+                files.get_split_output(
+                    run,
+                    start,
+                    end,
+                    ext='fits',
+                )
+            )
+
+        tmpdir = files.get_tempdir()
+        with files.StagedOutFile(output_file,tmpdir=tmpdir) as sf:
+            with fitsio.FITS(sf.path,'rw',clobber=True) as fits:
+
+                admiral = navy.Admiral(flist)
+                admiral.orchestrate()
+                reports = admiral.reports
+
+                first=True
+                for model_fits, epochs_data in reports:
+                    if first:
+                        fits.write(model_fits, extname='model_fits')
+                        first=False
+                    else:
+                        fits['model_fits'].append(model_fits)
+
+                first=True
+                for model_fits, epochs_data in reports:
+
+                    if first:
+                        fits.write(epochs_data, extname='epochs_data')
+                        first=False
+                    else:
+                        fits['epochs_data'].append(epochs_data)
+
+    else:
+        ship = navy.Ship(get_data)
+        ship.go()
+
+
+
+if __name__=='__main__':
+    main()
+ 
