@@ -3,7 +3,6 @@ TODO
 
     - condor submit with master script rather than individual scripts?
     - wq probably makes more sense but it is totally booked up
-    - collate script
     - batch maker just takes meds run and conf and figures
     out the rest?
     - make it write a fof making script
@@ -127,69 +126,6 @@ class ShellBatch(BatchBase):
     """
     def _write_split(self, isplit, fof_split):
         self._write_script(isplit, fof_split)
-
-class Collator(BatchBase):
-    def __init__(self, args):
-        self.args=args
-
-        self['fof_file'] = os.path.abspath(args.fofs)
-        self['fit_config'] = 'do not need'
-
-        self._load_config()
-        self._load_fofs()
-        self._make_dirs()
-
-    def go(self):
-        """
-        collate all the splits to a single file
-        """
-        output_file=files.get_collated_file(self['run'])
-        logger.info('writing collated file: %s' % output_file)
-
-        num_fofs = self.fofs['fofid'].max()
-        fof_splits = split.get_splits(num_fofs, self['chunksize'])
-        nsplit = len(fof_splits)
-
-        tmpdir = files.get_tempdir()
-        with StagedOutFile(output_file,tmpdir=tmpdir) as sf:
-            with fitsio.FITS(sf.path,'rw',clobber=True) as fits:
-                for isplit,fof_split in enumerate(fof_splits):
-
-                    start, end = fof_split
-
-                    split_file = files.get_split_output(
-                        self['run'],
-                        start,
-                        end,
-                        ext='fits',
-                    )
-
-                    logger.info('%d/%d %s: %s' % (isplit,nsplit,
-                                                  fof_split,split_file))
-
-                    with fitsio.FITS(split_file) as fitsin:
-                        model_fits=fitsin['model_fits'][:]
-                        epochs_data=fitsin['epochs_data'][:]
-
-                        if isplit==0:
-                            fits.write(model_fits, extname='model_fits')
-                            fits.write(epochs_data, extname='epochs_data')
-                        else:
-                            fits['model_fits'].append(model_fits)
-                            fits['epochs_data'].append(epochs_data)
-
-
-    def _make_dirs(self):
-        dirs = [
-            files.get_collated_dir(self['run']),
-        ]
-        for d in dirs:
-            try:
-                os.makedirs(d)
-            except:
-                pass
-
-
 
 class WQBatch(ShellBatch):
     """
