@@ -139,8 +139,7 @@ def load_fofs(fof_filename):
     load FoF information from the file
     """
     logger.info('loading fofs: %s' % fof_filename)
-    with fitsio.FITS(fof_filename
-                    ) as fits:
+    with fitsio.FITS(fof_filename) as fits:
         nbrs=fits['nbrs'][:]
         fofs=fits['fofs'][:]
 
