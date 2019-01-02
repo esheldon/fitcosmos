@@ -19,18 +19,64 @@ from .files import StagedOutFile
 
 logger = logging.getLogger(__name__)
 
-class BatchBase(dict):
+class FoFBatch(dict):
     def __init__(self, args):
         self.args=args
 
-        self['fof_file'] = os.path.abspath(args.fofs)
+        bname=os.path.basename(self.args.run_config)
+        self['run'] = bname.replace('.yaml','')
+
+        self._make_dirs()
+
+        meds_files = [
+            os.path.abspath(mf) for mf in self.args.meds
+        ]
+        self.meds_files = ' '.join(meds_files)
+
+    def go(self):
+        """
+        write the script to make the fof groups
+        """
+        fof_file = files.get_fof_file(self['run'])
+        plot_file = fof_file.replace('.fits','.png')
+
+        text=_fof_script_template % {
+            'fof_file':fof_file,
+            'plot_file':plot_file,
+            'fit_config':self.args.fit_config,
+            'meds_files':self.meds_files,
+        }
+
+        fof_script=files.get_fof_script_path(self['run'])
+        print('writing fof script:',fof_script)
+        with open(fof_script,'w') as fobj:
+            fobj.write(text)
+        os.system('chmod 755 %s' % fof_script)
+
+    def _make_dirs(self):
+        dirs = [
+            files.get_script_dir(self['run']),
+            files.get_fof_dir(self['run']),
+        ]
+        for d in dirs:
+            try:
+                os.makedirs(d)
+            except:
+                pass
+
+
+class BatchBase(dict):
+    def __init__(self, args):
+        self.args=args
+        self._load_config()
+
+        self['fof_file'] = files.get_fof_file(self['run'])
         self['fit_config'] = os.path.abspath(args.fit_config)
         meds_files = [
             os.path.abspath(mf) for mf in self.args.meds
         ]
         self.meds_files = ' '.join(meds_files)
 
-        self._load_config()
         self._set_rng()
         self._load_fofs()
         self._make_dirs()
@@ -113,7 +159,8 @@ class BatchBase(dict):
         self['run'] = bname.replace('.yaml','')
 
     def _load_fofs(self):
-        nbrs,fofs=files.load_fofs(self.args.fofs)
+        #nbrs,fofs=files.load_fofs(self.args.fofs)
+        nbrs,fofs=files.load_fofs(self['fof_file'])
         self.fofs=fofs
 
 
@@ -275,6 +322,20 @@ class CondorBatch(BatchBase):
         return fobj
 
 
+_fof_script_template=r"""#!/bin/bash
+
+fof_file="%(fof_file)s"
+plot_file="%(plot_file)s"
+config_file="%(fit_config)s"
+meds_files="%(meds_files)s"
+
+fitcosmos-make-fofs \
+    --conf=$config_file \
+    --plot=$plot_file \
+    --output=$fof_file \
+    $meds_files
+
+"""
 
 _script_template=r"""#!/bin/bash
 

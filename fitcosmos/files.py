@@ -18,6 +18,28 @@ def get_run_dir(run):
         run,
     )
 
+def get_fof_dir(run):
+    """
+    get the directory holding fofs
+    """
+    run_dir=get_run_dir(run)
+    return os.path.join(
+        run_dir,
+        'fofs',
+    )
+
+def get_fof_file(run):
+    """
+    get the directory holding fofs
+    """
+    fof_dir=get_fof_dir(run)
+    fname='%s-fofs.fits' % run
+    return os.path.join(
+        fof_dir,
+        fname,
+    )
+
+
 def get_collated_dir(run):
     """
     get the collated directory
@@ -83,6 +105,19 @@ def get_script_path(run, start, end):
         script_dir,
         fname,
     )
+
+def get_fof_script_path(run):
+    """
+    directory for scripts
+    """
+    script_dir=get_script_dir(run)
+
+    fname = '%s-make-fofs.sh' % run
+    return os.path.join(
+        script_dir,
+        fname,
+    )
+
 
 def get_wq_path(run, start, end):
     """
