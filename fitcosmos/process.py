@@ -174,10 +174,20 @@ class Processor(object):
         return new_mbobs
 
     def _set_weight(self, mbobs, index):
-        hst_band=4
+        """
+        set the weight
+
+        we set a circular mask based on the radius.  For non hst bands
+        we add quadratically with a fake psf fwhm of 1.5 arcsec
+        """
+
+        # hst_band can be None if we are only processing non-hst data
+        hst_band=self.config['hst_band']
+
         fwhm=1.5
         sigma=fwhm/2.35
         exrad=3*sigma
+
         for band,obslist in enumerate(mbobs):
             m=self.mb_meds.mlist[band]
             rad = m['iso_radius_arcsec'][index]*3.0
