@@ -10,7 +10,6 @@ import argparse
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--run-config',required=True)
-parser.add_argument('--fofs',required=True)
 
 def main():
     args=parser.parse_args()
@@ -35,7 +34,9 @@ def main():
 
         print('will write to:',output_file)
 
-        nbrs,fofs=files.load_fofs(args.fofs)
+        fof_file=files.get_fof_file(run)
+        nbrs,fofs=files.load_fofs(fof_file)
+
         num_fofs = fofs['fofid'].max()
         fof_splits = split.get_splits(num_fofs, config['chunksize'])
         flist=[]
