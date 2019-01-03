@@ -181,6 +181,11 @@ class Processor(object):
         we add quadratically with a fake psf fwhm of 1.5 arcsec
         """
 
+        assert self.config['weight_type'] in ('weight','circular-mask')
+
+        if self.config['weight_type'] == 'weight':
+            return
+
         # hst_band can be None if we are only processing non-hst data
         hst_band=self.config['hst_band']
 
