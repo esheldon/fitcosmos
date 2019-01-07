@@ -11,7 +11,7 @@ from ngmix.gexceptions import GMixMaxIterEM
 from ngmix.gmix import GMixModel
 from ngmix.gexceptions import BootPSFFailure, BootGalFailure
 
-from .util import Namer
+from .util import Namer, NoDataError
 from . import procflags
 
 import mof
@@ -202,6 +202,14 @@ class MOFFitter(FitterBase):
             else:
                 res['main_flags'] = 0
                 res['main_flagstr'] = procflags.get_flagname(0)
+
+        except NoDataError as err:
+            epochs_data=None
+            print(str(err))
+            res={
+                'main_flags':procflags.NO_DATA,
+                'main_flagstr':procflags.get_flagname(procflags.NO_DATA),
+            }
 
         except BootPSFFailure as err:
             epochs_data=None
@@ -472,7 +480,11 @@ class AllPSFFluxFitter(object):
 
     def go(self):
         for mbobs in self.mbobs_list:
-            for obslist in mbobs:
+            for band,obslist in enumerate(mbobs):
+
+                if len(obslist) == 0:
+                    raise NoDataError('no data in band %d' % band)
+
                 meta=obslist.meta
 
                 res = self._fit_psf_flux(obslist)

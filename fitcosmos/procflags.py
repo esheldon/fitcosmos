@@ -1,13 +1,17 @@
 NO_ATTEMPT=2**0
-IMAGE_FLAGS=2**1
-PSF_FAILURE=2**2
-OBJ_FAILURE=2**3
+NO_DATA=2**1
+IMAGE_FLAGS=2**2
+PSF_FAILURE=2**3
+OBJ_FAILURE=2**4
 
 FLAG_MAP={
     'ok':0,
     0:'ok',
     'no_attempt':NO_ATTEMPT,
     NO_ATTEMPT:'no_attempt',
+
+    'no_data':NO_DATA,
+    NO_DATA:'no_data',
 
     'image_flags':IMAGE_FLAGS,
     IMAGE_FLAGS:'image_flags',

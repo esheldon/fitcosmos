@@ -18,6 +18,18 @@ def setup_logging(level):
 
     logging.basicConfig(stream=sys.stdout, level=l)
 
+class NoDataError(Exception):
+    """
+    there was no data
+    """
+    def __init__(self, value):
+        super(NoDataError, self).__init__(value)
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
+
+
 class Namer(object):
     """
     create strings with a specified front prefix
