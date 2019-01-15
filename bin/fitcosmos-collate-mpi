@@ -18,8 +18,12 @@ def main():
         print('reading:',fname)
         with fitsio.FITS(fname) as fits:
             model_fits = fits['model_fits'][:]
-            epochs_data = fits['epochs_data'][:]
-        return model_fits, epochs_data
+            if 'epochs_data' in fits:
+                epochs_data = fits['epochs_data'][:]
+            else:
+                epochs_data=None
+
+        return model_fits, epochs_data, fname
 
     if navy.rank == navy.ADMIRAL:
 
@@ -59,7 +63,7 @@ def main():
                 reports = admiral.reports
 
                 first=True
-                for model_fits, epochs_data in reports:
+                for model_fits, epochs_data, fname in reports:
                     if first:
                         fits.write(model_fits, extname='model_fits')
                         first=False
@@ -67,13 +71,16 @@ def main():
                         fits['model_fits'].append(model_fits)
 
                 first=True
-                for model_fits, epochs_data in reports:
+                for model_fits, epochs_data, fname in reports:
 
-                    if first:
-                        fits.write(epochs_data, extname='epochs_data')
-                        first=False
+                    if epochs_data is not None:
+                        if first:
+                            fits.write(epochs_data, extname='epochs_data')
+                            first=False
+                        else:
+                            fits['epochs_data'].append(epochs_data)
                     else:
-                        fits['epochs_data'].append(epochs_data)
+                        print('epochs data is None for %s' % fname)
 
     else:
         ship = navy.Ship(get_data)
