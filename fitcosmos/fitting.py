@@ -487,13 +487,13 @@ class AllPSFFluxFitter(object):
 
                 meta=obslist.meta
 
-                res = self._fit_psf_flux(obslist)
+                res = self._fit_psf_flux(band,obslist)
                 meta['psf_flux_flags'] = res['flags']
 
                 for n in ('psf_flux','psf_flux_err','psf_flux_s2n'):
                     meta[n] = res[n.replace('psf_','')]
 
-    def _fit_psf_flux(self, obslist):
+    def _fit_psf_flux(self, band, obslist):
         fitter=ngmix.fitting.TemplateFluxFitter(
             obslist,
             do_psf=True,
@@ -506,7 +506,7 @@ class AllPSFFluxFitter(object):
             res['flux_s2n'] = res['flux']/res['flux_err']
         else:
             res['flux_s2n'] = -9999.0
-            raise BootPSFFailure("failed to fit psf fluxes: %s" % str(res))
+            raise BootPSFFailure("failed to fit psf fluxes for band %d: %s" % (band,str(res)))
 
         return res
 
