@@ -186,6 +186,7 @@ class WQBatch(ShellBatch):
         """
         write the wq submit script
         """
+        args=self.args
         start, end = fof_split
 
         script_file=files.get_script_path(self['run'], start, end)
@@ -199,10 +200,25 @@ class WQBatch(ShellBatch):
             ext='fits',
         )
 
-        if self.args.missing and os.path.exists(output_file):
-            if os.path.exists(wq_file):
-                os.remove(wq_file)
-            return
+        if args.missing or args.verify:
+            file_exists=os.path.exists(output_file)
+            if not file_exists:
+                ok=False
+            else:
+                if args.verify:
+                    with fitsio.FITS(output_file) as fits:
+                        if ('model_fits' in fits and 'epochs_data' in fits):
+                            ok=True
+                        else:
+                            print('extensions missing')
+                            ok=False
+                else: 
+                    ok=True
+
+            if ok:
+                if os.path.exists(wq_file):
+                    os.remove(wq_file)
+                return
 
         logger.info('wq script: %s' % wq_file)
 
