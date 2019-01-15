@@ -87,6 +87,9 @@ class Processor(object):
         logger.debug('doing fits')
         output, epochs_data = self.fitter.go(mbobs_list)
 
+        if self.args.save or self.args.show:
+            self._doplots_compare_model(fofid, mbobs_list)
+
         self._add_extra_outputs(indices, output, fofid)
         return output, epochs_data
 
@@ -133,12 +136,13 @@ class Processor(object):
 
             obslist.meta.update(meta)
 
-            for obs in obslist:
-                # fudge for ngmix working in surface brightness
-                pixel_scale2 = obs.jacobian.get_det()
-                pixel_scale4 = pixel_scale2*pixel_scale2
-                obs.image *= 1/pixel_scale2
-                obs.weight *= pixel_scale4
+            # fudge for ngmix working in surface brightness
+            if self.config['parspace']=='ngmix':
+                for obs in obslist:
+                    pixel_scale2 = obs.jacobian.get_det()
+                    pixel_scale4 = pixel_scale2*pixel_scale2
+                    obs.image *= 1/pixel_scale2
+                    obs.weight *= pixel_scale4
 
         return mbobs
 
@@ -234,6 +238,12 @@ class Processor(object):
             logger.info('writing: %s' % pltname)
             plt.write(pltname,dpi=300)
 
+    def _doplots_compare_model(self, fofid, mbobs_list):
+        mof_fitter=self.fitter.get_mof_fitter()
+        res=mof_fitter.get_result()
+        if res['flags']==0:
+            vis.compare_models(mbobs_list, mof_fitter)
+
     def _write_output(self, output, epochs_data):
         """
         write the output as well as information from the epochs
@@ -262,11 +272,22 @@ class Processor(object):
         """
         currently only MOF
         """
-        self.fitter = fitting.MOFFitter(
-            self.config,
-            self.mb_meds.nband,
-            self.rng,
-        ) 
+        parspace = self.config['parspace']
+        if parspace=='ngmix':
+            self.fitter = fitting.MOFFitter(
+                self.config,
+                self.mb_meds.nband,
+                self.rng,
+            ) 
+        elif parspace=='galsim':
+            self.fitter = fitting.MOFFitterGS(
+                self.config,
+                self.mb_meds.nband,
+                self.rng,
+            ) 
+        else:
+            raise ValueError('bad parspace "%s", should be '
+                             '"ngmix" or "galsim"')
 
     def _load_fofs(self):
         """
