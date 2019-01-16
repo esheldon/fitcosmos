@@ -329,6 +329,7 @@ class MOFFitter(FitterBase):
             ('fof_id','i8'), # fof id within image
             ('flags','i4'),
             ('flagstr','U11'),
+            ('masked_frac','f4'),
             ('psf_g','f8',2),
             ('psf_T','f8'),
             ('psf_flux_flags','i4',nband),
@@ -392,6 +393,8 @@ class MOFFitter(FitterBase):
             for i,res in enumerate(reslist):
                 t=output[i] 
                 mbobs = mbobs_list[i]
+
+                t['masked_frac'] = mbobs.meta['masked_frac']
 
                 for band,obslist in enumerate(mbobs):
                     meta = obslist.meta
@@ -464,6 +467,7 @@ class MOFFitterGS(MOFFitter):
             ('fof_id','i8'), # fof id within image
             ('flags','i4'),
             ('flagstr','U11'),
+            ('masked_frac','f4'),
             ('psf_g','f8',2),
             ('psf_T','f8'),
             ('psf_flux_flags','i4',nband),

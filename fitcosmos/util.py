@@ -91,3 +91,19 @@ def get_trials_per_job_mpi(njobs, ntrials):
     split for mpi
     """
     return int(round(float(ntrials)/njobs))
+
+def get_masked_frac(mbobs):
+    nmasked=0.0
+    npix=0
+
+    for obslist in mbobs:
+        for obs in obslist:
+            weight = obs.weight
+            wmasked = np.where(weight <= 0.0)
+            nmasked += wmasked[0].size
+            npix += weight.size
+
+    masked_frac = nmasked/npix
+    return masked_frac
+
+

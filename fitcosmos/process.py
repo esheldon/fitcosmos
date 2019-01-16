@@ -17,6 +17,7 @@ from . import fitting
 from . import files
 import time
 from . import vis
+from . import util
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,8 @@ class Processor(object):
 
         self._set_weight(mbobs, index)
 
+        mbobs.meta['masked_frac'] = util.get_masked_frac(mbobs)
+
         for band,obslist in enumerate(mbobs):
             m=self.mb_meds.mlist[band]
             meta = {
@@ -226,9 +229,6 @@ class Processor(object):
                     twt = obs.weight.copy()
                     twt[w] = 0.0
                     obs.weight = twt
-
-
-
 
     def _doplots(self, fofid, mbobs_list):
         plt=vis.view_mbobs_list(mbobs_list, show=self.args.show)#, weight=True)
@@ -333,3 +333,4 @@ class Processor(object):
         for m in self.mb_meds.mlist:
             meta=m.get_meta()
             self.magzp_refs.append(meta['magzp_ref'][0])
+
