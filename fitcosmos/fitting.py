@@ -370,6 +370,16 @@ class MOFFitter(FitterBase):
         n=self.namer
         st[n('flags')] = st['flags']
 
+        noset=['id','ra','dec','flux_auto','mag_auto',
+               'flags','flagstr',n('flags')]
+
+        for n in st.dtype.names:
+            if n not in noset:
+                if 'err' in n or 'cof' in n:
+                    st[n] =  9.999e9
+                else:
+                    st[n] = -9.999e9
+
         return st
 
     def _get_output(self, mbobs_list, main_res, reslist):
