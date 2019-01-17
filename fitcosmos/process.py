@@ -121,6 +121,9 @@ class Processor(object):
             weight_type='weight',
         )
 
+        if self.config.get('inject',False):
+            self._inject_fake_objects(mbobs)
+
         if self.config['keep_best_epoch']:
             mbobs = self._get_best_epochs(index, mbobs)
 
@@ -148,6 +151,73 @@ class Processor(object):
                     obs.weight *= pixel_scale4
 
         return mbobs
+
+    def _inject_fake_objects(self, mbobs):
+        """
+        inject a simple model for quick tests
+        """
+        import galsim
+        # star
+        #hlr=1.0e-5
+        #flux=100.0
+        hlr=0.1
+        flux=10000.0
+
+        #model = galsim.Exponential(
+        #model = galsim.DeVaucouleurs(
+        #    half_light_radius=hlr,
+        #    flux=flux,
+        #)
+        model = galsim.Add(
+            galsim.Exponential(
+                half_light_radius=hlr,
+                flux=0.5,
+            ),
+            galsim.DeVaucouleurs(
+                half_light_radius=hlr,
+                flux=0.5,
+            )
+        ).withFlux(flux)
+
+        interp='lanczos15'
+
+        for obslist in mbobs:
+            for obs in obslist:
+                psf_gsimage = galsim.Image(
+                    obs.psf.image/obs.psf.image.sum(),
+                    wcs=obs.psf.jacobian.get_galsim_wcs(),
+                )
+
+                psf_ii = galsim.InterpolatedImage(
+                    psf_gsimage,
+                    x_interpolant=interp,
+                )
+
+                gsimage = galsim.Image(
+                    obs.image,
+                    wcs=obs.jacobian.get_galsim_wcs(),
+                )
+                tmodel = galsim.Convolve(
+                    model,
+                    psf_ii,
+                )
+                tmodel.drawImage(
+                    image=gsimage,
+                    method='no_pixel',
+                )
+
+                image = gsimage.array
+
+                wtmax = obs.weight.max()
+                err = np.sqrt(1.0/wtmax)
+
+                image += self.rng.normal(
+                    scale=err,
+                    size=image.shape,
+                )
+
+                obs.image = image
+
 
     def _get_best_epochs(self, index, mbobs):
         """

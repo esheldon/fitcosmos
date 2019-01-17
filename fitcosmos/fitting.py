@@ -7,6 +7,7 @@ import esutil as eu
 import ngmix
 from ngmix.gexceptions import GMixRangeError
 from ngmix.observation import Observation
+
 from ngmix.gexceptions import GMixMaxIterEM
 from ngmix.gmix import GMixModel
 from ngmix.gexceptions import BootPSFFailure, BootGalFailure
@@ -447,7 +448,8 @@ class MOFFitterGS(MOFFitter):
         )
 
     def _set_mof_fitter_class(self):
-        self._mof_fitter_class=mof.MOFStampsGS
+        self._mof_fitter_class=mof.GSMOF
+        #self._mof_fitter_class=mof.GSMOFR
 
     def _set_guess_func(self):
         self._guess_func=get_stamp_guesses_gs
