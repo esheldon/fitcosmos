@@ -1,6 +1,8 @@
 """
 TODO:
 
+    - I think we probably need to limit the stamp size on cosmos if we are
+      going to do real space fitting.
     - check mask frac on each stamp, reject if exceeds configurable maximum
     - note we are recording overall maskfrac
 
