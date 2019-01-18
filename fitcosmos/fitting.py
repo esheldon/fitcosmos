@@ -342,6 +342,7 @@ class MOFFitter(FitterBase):
             (n('nfev'),'i4'),
             (n('s2n'),'f8'),
             (n('pars'),'f8',npars),
+            (n('pars_err'),'f8',npars),
             (n('pars_cov'),'f8',(npars,npars)),
             (n('g'),'f8',2),
             (n('g_cov'),'f8',(2,2)),
@@ -439,6 +440,11 @@ class MOFFitter(FitterBase):
                         nname=n(name)
                         t[nname] = val
 
+                        if 'pars_cov' in name:
+                            ename=n('pars_err')
+                            pars_err=np.sqrt(np.diag(val))
+                            t[ename] = pars_err
+
                 for band,obslist in enumerate(mbobs):
                     meta = obslist.meta
                     if nband > 1:
@@ -447,6 +453,12 @@ class MOFFitter(FitterBase):
                     else:
                         tflux = t[n('flux')].clip(min=0.001)
                         t[n('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
+
+                pstr = ' '.join( [ '%8.3g' % el for el in t[n('pars')] ] )
+                estr = ' '.join( [ '%8.3g' % el for el in t[n('pars_err')] ] )
+                #logger.debug('%d pars: %s' % (i, str(t[n('pars')])))
+                logger.debug('%d pars: %s' % (i, pstr))
+                logger.debug('%d perr: %s' % (i, estr))
 
         return output
 
@@ -493,6 +505,7 @@ class MOFFitterGS(MOFFitter):
             (n('nfev'),'i4'),
             (n('s2n'),'f8'),
             (n('pars'),'f8',npars),
+            (n('pars_err'),'f8',npars),
             (n('pars_cov'),'f8',(npars,npars)),
             (n('g'),'f8',2),
             (n('g_cov'),'f8',(2,2)),
@@ -705,10 +718,16 @@ def get_stamp_guesses_gs(list_of_obs,
         obs=detobslist[0]
 
         T=detmeta['Tsky']
-        if T < 1.0e-3:
-            T = 1.0e-3
+        if T < 1.0e-6:
+            T = 1.0e-6
 
         hlr = 0.5*ngmix.moments.T_to_fwhm(T)
+        if hlr > 0.11:
+            hlr = hlr - 0.1
+        #hlr=0.05
+        #print(hlr)
+        #hlr = 0.05
+        #hlr = 0.1*detmeta['flux_radius_arcsec']
 
         beg=i*npars_per
 

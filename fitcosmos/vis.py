@@ -77,10 +77,13 @@ def compare_models(mbobs_list, fitter, **kw):
                     band=band,
                     obsnum=obsnum,
                 )
+
+                title='ind: %d band: %d obs: %d' % (iobj,band,obsnum)
                 images.compare_images(
                     obs.image,
                     model_image,
                     labels=['image','model'],
+                    title=title,
                 )
 
     return

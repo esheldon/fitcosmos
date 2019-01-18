@@ -121,7 +121,7 @@ class Processor(object):
             weight_type='weight',
         )
 
-        if self.config.get('inject',False):
+        if 'inject' in self.config and self.config['inject']['do_inject']:
             self._inject_fake_objects(mbobs)
 
         if self.config['keep_best_epoch']:
@@ -133,12 +133,18 @@ class Processor(object):
 
         for band,obslist in enumerate(mbobs):
             m=self.mb_meds.mlist[band]
+            scale=obslist[0].jacobian.scale
+            flux_radius_arcsec = m['flux_radius'][index,1]*scale
             meta = {
-                'Tsky': 2* (m['iso_radius_arcsec'][index]*0.5)**2,
+                #'Tsky': 2* (m['iso_radius_arcsec'][index]*0.5)**2,
                 #'Tsky': 0.1,
+                'flux_radius_arcsec': flux_radius_arcsec,
                 'flux': m['flux_auto'][index],
                 'magzp_ref': self.magzp_refs[band],
             }
+            # e.g. the injection pipeline might already have set it
+            if 'Tsky' not in obslist.meta:
+                meta['Tsky'] = 2* (m['iso_radius_arcsec'][index]*0.5)**2
 
             obslist.meta.update(meta)
 
@@ -157,53 +163,88 @@ class Processor(object):
         inject a simple model for quick tests
         """
         import galsim
-        # star
-        #hlr=1.0e-5
-        #flux=100.0
-        hlr=0.1
-        flux=10000.0
 
-        #model = galsim.Exponential(
-        #model = galsim.DeVaucouleurs(
-        #    half_light_radius=hlr,
-        #    flux=flux,
-        #)
-        model = galsim.Add(
-            galsim.Exponential(
+        iconf=self.config['inject']
+
+        model_name=iconf['model']
+        hlr=iconf['hlr']
+        flux=iconf['flux']
+
+        if model_name=='exp':
+            model = galsim.Exponential(
                 half_light_radius=hlr,
-                flux=0.5,
-            ),
-            galsim.DeVaucouleurs(
-                half_light_radius=hlr,
-                flux=0.5,
+                flux=flux,
             )
-        ).withFlux(flux)
 
-        interp='lanczos15'
+        elif model_name=='bdf':
+
+            fracdev=iconf['fracdev'] 
+            model = galsim.Add(
+                galsim.Exponential(
+                    half_light_radius=hlr,
+                    flux=(1-fracdev),
+                ),
+                galsim.DeVaucouleurs(
+                    half_light_radius=hlr,
+                    flux=fracdev,
+                )
+            ).withFlux(flux)
+        else:
+            raise ValueError('bad model: "%s"' % model_name)
+
+        if 'psf' in iconf:
+            psf_model = galsim.Gaussian(
+                fwhm=iconf['psf']['fwhm'],
+            )
+            method='fft'
+        else:
+            psf_model=None
+            method='no_pixel'
+
+        Tfake = ngmix.moments.fwhm_to_T(hlr/0.5)
 
         for obslist in mbobs:
+            obslist.meta['Tsky'] = Tfake
             for obs in obslist:
-                psf_gsimage = galsim.Image(
-                    obs.psf.image/obs.psf.image.sum(),
-                    wcs=obs.psf.jacobian.get_galsim_wcs(),
-                )
-
-                psf_ii = galsim.InterpolatedImage(
-                    psf_gsimage,
-                    x_interpolant=interp,
-                )
 
                 gsimage = galsim.Image(
-                    obs.image,
+                    obs.image.copy(),
                     wcs=obs.jacobian.get_galsim_wcs(),
                 )
+
+                if psf_model is None:
+                    psf_gsimage = galsim.Image(
+                        obs.psf.image/obs.psf.image.sum(),
+                        wcs=obs.psf.jacobian.get_galsim_wcs(),
+                    )
+                    psf_to_conv = galsim.InterpolatedImage(
+                        psf_gsimage,
+                        #x_interpolant='lanczos15',
+                    )
+                    obs.psf.image = psf_gsimage.array
+
+                else:
+
+                    pshape=obs.psf.image.shape
+                    psf_gsimage = psf_model.drawImage(
+                        nx=pshape[1],
+                        ny=pshape[0],
+                        wcs=obs.psf.jacobian.get_galsim_wcs(),
+                    )
+
+                    psf_to_conv = galsim.InterpolatedImage(
+                        psf_gsimage,
+                    )
+                    obs.psf.image = psf_gsimage.array
+
                 tmodel = galsim.Convolve(
                     model,
-                    psf_ii,
+                    psf_to_conv,
                 )
+
                 tmodel.drawImage(
                     image=gsimage,
-                    method='no_pixel',
+                    method=method,
                 )
 
                 image = gsimage.array
