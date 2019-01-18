@@ -1,8 +1,8 @@
 """
 TODO:
 
-    - more outputs to save from meds file
-    - make sure good T guesses being used.
+    - check mask frac on each stamp, reject if exceeds configurable maximum
+    - note we are recording overall maskfrac
 
 """
 import numpy as np

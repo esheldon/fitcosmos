@@ -458,8 +458,10 @@ class MOFFitterGS(MOFFitter):
         )
 
     def _set_mof_fitter_class(self):
-        self._mof_fitter_class=mof.GSMOF
-        #self._mof_fitter_class=mof.GSMOFR
+        if self.get('use_kspace',False):
+            self._mof_fitter_class=mof.KGSMOF
+        else:
+            self._mof_fitter_class=mof.GSMOF
 
     def _set_guess_func(self):
         self._guess_func=get_stamp_guesses_gs
