@@ -76,6 +76,7 @@ def compare_models(mbobs_list, fitter, **kw):
                     iobj,
                     band=band,
                     obsnum=obsnum,
+                    include_nbrs=True,
                 )
 
                 title='ind: %d band: %d obs: %d' % (iobj,band,obsnum)

@@ -352,10 +352,17 @@ class Processor(object):
             plt.write(pltname,dpi=300)
 
     def _doplots_compare_model(self, fofid, mbobs_list):
-        mof_fitter=self.fitter.get_mof_fitter()
-        res=mof_fitter.get_result()
-        if res['flags']==0:
-            vis.compare_models(mbobs_list, mof_fitter)
+        try:
+            mof_fitter=self.fitter.get_mof_fitter()
+            res=mof_fitter.get_result()
+            if res['flags']==0:
+                vis.compare_models(mbobs_list, mof_fitter)
+        except RuntimeError:
+            logger.info('could not render model')
+
+        if self.args.show:
+            if 'q'==input('hit a key (q to quit): '):
+                stop
 
     def _write_output(self, output, epochs_data):
         """

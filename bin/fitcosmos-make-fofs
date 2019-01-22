@@ -17,7 +17,7 @@ parser.add_argument('--plot',required=True)
 parser.add_argument('--output',required=True)
 parser.add_argument('meds')
 
-parser.add_argument('--des-psf-fwhm',type=float,default=0.9)
+parser.add_argument('--extra-psf-fwhm',type=float,default=0.0)
 
 parser.add_argument('--plot-only',action='store_true')
 
@@ -45,7 +45,7 @@ def main():
         rad = m[radcol]
 
         # should be in arcsec
-        psf_sigma = args.des_psf_fwhm/FWHM_FAC
+        psf_sigma = args.extra_psf_fwhm/FWHM_FAC
 
         rad = np.sqrt(rad**2 + psf_sigma**2)
 
