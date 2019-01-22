@@ -11,8 +11,8 @@ def get_splits(num_fofs, chunksize):
     for chunk in range(nchunks):
         start = chunk*chunksize
         end = start + chunksize - 1
-        if end >= num_fofs:
-            end = num_fofs-1
+        if end > num_fofs:
+            end = num_fofs
         fof_splits.append([start,end])
 
 

@@ -221,6 +221,7 @@ class MOFFitter(FitterBase):
             }
 
         except BootPSFFailure as err:
+            fitter=None
             epochs_data=None
             print(str(err))
             res={
