@@ -129,6 +129,9 @@ class Processor(object):
         if self.config['keep_best_epoch']:
             mbobs = self._get_best_epochs(index, mbobs)
 
+        if 'trim_images' in self.config and self.config['trim_images']['trim']:
+            mbobs = self._trim_images(mbobs, index)
+
         self._set_weight(mbobs, index)
 
         mbobs.meta['masked_frac'] = util.get_masked_frac(mbobs)
@@ -292,6 +295,108 @@ class Processor(object):
 
             new_mbobs.append(new_obslist)
         return new_mbobs
+
+    def _trim_images(self, mbobs, index):
+        """
+        trim the images down to a minimal size
+        """
+        # hst_band can be None if we are only processing non-hst data
+        hst_band=self.config['hst_band']
+        logger.debug('trimming')
+
+        min_size = self.config['trim_images']['min_size']
+        max_size = self.config['trim_images']['max_size']
+
+        min_rad = min_size/2.0
+        max_rad = max_size/2.0
+
+        fwhm=1.5
+        sigma=fwhm/2.35
+        exrad=3*sigma
+
+        new_mbobs=ngmix.MultiBandObsList()
+        new_mbobs.meta.update( mbobs.meta )
+        for band,obslist in enumerate(mbobs):
+
+            m=self.mb_meds.mlist[band]
+            rad = m['iso_radius_arcsec'][index]*3.0
+
+            if band != hst_band:
+                #rad = np.sqrt(rad**2 + 0.4**2)
+                rad = np.sqrt(rad**2 + exrad**2)
+
+            new_obslist=ngmix.ObsList()
+            new_obslist.meta.update( obslist.meta )
+            for obs in obslist:
+                imshape=obs.image.shape
+                if imshape[0] > min_size:
+
+                    meta = obs.meta
+                    jac = obs.jacobian
+                    cen = jac.get_cen()
+                    rowpix=int(round(cen[0]))
+                    colpix=int(round(cen[1]))
+
+
+                    scale = jac.scale
+                    radpix = rad/scale
+
+                    if radpix < min_rad:
+                        radpix = min_rad
+
+                    if radpix > max_rad:
+                        radpix = max_rad
+
+                    radpix = int(radpix)-1
+
+                    row_start = rowpix-radpix
+                    row_end   = rowpix+radpix+1
+                    col_start = colpix-radpix
+                    col_end   = colpix+radpix+1
+
+                    if row_start < 0:
+                        row_start = 0
+                    if row_end > imshape[0]:
+                        row_end = imshape[0]
+                    if col_start < 0:
+                        col_start = 0
+                    if col_end > imshape[1]:
+                        col_end = imshape[1]
+
+
+                    subim = obs.image[
+                        row_start:row_end,
+                        col_start:col_end,
+                    ]
+                    subwt = obs.weight[
+                        row_start:row_end,
+                        col_start:col_end,
+                    ]
+                    logger.debug('%s -> %s' % ( str(obs.image.shape),str(subim.shape)))
+
+                    cen = (cen[0] - row_start, cen[1] - col_start)
+                    jac.set_cen(row=cen[0], col=cen[1])
+
+                    meta['orig_start_row'] += row_start
+                    meta['orig_start_col'] += col_start
+
+                    new_obs = ngmix.Observation(
+                        subim,
+                        weight=subwt,
+                        jacobian=jac,
+                        meta=obs.meta,
+                        psf=obs.psf,
+                    )
+                else:
+                    new_obs = obs
+
+                new_obslist.append(new_obs)
+
+            new_mbobs.append(new_obslist)
+
+        return new_mbobs
+
+
 
     def _set_weight(self, mbobs, index):
         """
