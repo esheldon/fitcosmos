@@ -455,8 +455,12 @@ class MOFFitter(FitterBase):
                         tflux = t[n('flux')].clip(min=0.001)
                         t[n('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
 
-                pstr = ' '.join( [ '%8.3g' % el for el in t[n('pars')] ] )
-                estr = ' '.join( [ '%8.3g' % el for el in t[n('pars_err')] ] )
+                try:
+                    pstr = ' '.join( [ '%8.3g' % el for el in t[n('pars')] ] )
+                    estr = ' '.join( [ '%8.3g' % el for el in t[n('pars_err')] ] )
+                except TypeError:
+                    pstr = '%8.3g' % t[n('pars')]
+                    estr = '%8.3g' % t[n('pars_err')]
                 #logger.debug('%d pars: %s' % (i, str(t[n('pars')])))
                 logger.debug('%d pars: %s' % (i, pstr))
                 logger.debug('%d perr: %s' % (i, estr))
@@ -524,6 +528,150 @@ class MOFFitterGS(MOFFitter):
                 (n('fracdev'),'f8'),
                 (n('fracdev_err'),'f8'),
             ]
+        return dt
+
+class MOFFluxFitterGS(MOFFitterGS):
+    """
+    deblend with morphology fixed
+    """
+    def __init__(self, *args, **kw):
+
+        super(MOFFitter,self).__init__(*args, **kw)
+
+        self._set_mof_fitter_class()
+        self._set_guess_func()
+
+    def go(self, mbobs_list, ntry=2, get_fitter=False):
+        """
+        run the multi object fitter
+
+        parameters
+        ----------
+        mbobs_list: list of MultiBandObsList
+            One for each object.  If it is a simple
+            MultiBandObsList it will be converted
+            to a list
+
+        returns
+        -------
+        data: ndarray
+            Array with all output fields
+        """
+        if not isinstance(mbobs_list,list):
+            mbobs_list=[mbobs_list]
+
+        try:
+            _fit_all_psfs(mbobs_list, self['mof']['psf'])
+            _measure_all_psf_fluxes(mbobs_list)
+
+            epochs_data = self._get_epochs_output(mbobs_list)
+
+            mofc = self['mof']
+            fitter = self._mof_fitter_class(
+                mbobs_list,
+                mofc['model'],
+            )
+            for i in range(ntry):
+                guess=self._guess_func(
+                    mbobs_list,
+                    self.rng,
+                )
+                fitter.go(guess)
+
+                res=fitter.get_result()
+                if res['flags']==0:
+                    break
+
+            if res['flags'] != 0:
+                res['main_flags'] = procflags.OBJ_FAILURE
+                res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+            else:
+                res['main_flags'] = 0
+                res['main_flagstr'] = procflags.get_flagname(0)
+
+        except NoDataError as err:
+            epochs_data=None
+            print(str(err))
+            res={
+                'main_flags':procflags.NO_DATA,
+                'main_flagstr':procflags.get_flagname(procflags.NO_DATA),
+            }
+
+        except BootPSFFailure as err:
+            fitter=None
+            epochs_data=None
+            print(str(err))
+            res={
+                'main_flags':procflags.PSF_FAILURE,
+                'main_flagstr':procflags.get_flagname(procflags.PSF_FAILURE),
+            }
+
+        nobj = len(mbobs_list)
+
+        if res['main_flags'] != 0:
+            reslist=None
+        else:
+            reslist=fitter.get_result_list()
+
+        data=self._get_output(
+            mbobs_list,
+            res,
+            reslist,
+        )
+
+        self._mof_fitter=fitter
+
+        return data, epochs_data
+
+    def get_npars(self):
+        """
+        number of pars we expect
+        """
+        return self.nband
+
+    def _set_mof_fitter_class(self):
+        assert self['use_kspace']==False
+        self._mof_fitter_class=mof.galsimfit.GSMOFFlux
+
+    def _set_guess_func(self):
+        self._guess_func=get_stamp_flux_guesses_gs
+
+    def _get_dtype(self):
+        npars = self.npars
+        nband = self.nband
+
+        # TODO: get psf hlr too and do ratio?
+        n=self.namer
+        dt = [
+            ('id','i8'),
+            ('ra','f8'),
+            ('dec','f8'),
+            ('flux_auto','f4'),
+            ('mag_auto','f4'),
+            ('fof_id','i8'), # fof id within image
+            ('flags','i4'),
+            ('flagstr','U11'),
+            ('masked_frac','f4'),
+            ('psf_g','f8',2),
+            ('psf_T','f8'),
+            ('psf_flux_flags','i4',nband),
+            ('psf_flux','f8',nband),
+            ('psf_mag','f8',nband),
+            ('psf_flux_err','f8',nband),
+            ('psf_flux_s2n','f8',nband),
+            (n('flags'),'i4'),
+            (n('nfev'),'i4'),
+            (n('s2n'),'f8'),
+            (n('pars'),'f8',npars),
+            (n('pars_err'),'f8',npars),
+            (n('pars_cov'),'f8',(npars,npars)),
+            #(n('hlr_ratio'),'f8'),
+            (n('flux'),'f8',nband),
+            (n('mag'),'f8',nband),
+            (n('flux_cov'),'f8',(nband,nband)),
+            (n('flux_err'),'f8',nband),
+        ]
+
         return dt
 
 
@@ -758,9 +906,49 @@ def get_stamp_guesses_gs(list_of_obs,
             # TODO: if we get psf flux from galsim psf then we can
             # remove the scale squared
             flux=band_meta['psf_flux']/scale**2
+            if flux < 0.01:
+                flux = 0.01
             flux_guess=flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
             guess[beg+flux_start+band] = flux_guess
+
+    return guess
+
+def get_stamp_flux_guesses_gs(list_of_obs, rng):
+    """
+    get a guess based on metadata in the obs
+
+    T guess is gotten from detband
+    """
+
+    nband=len(list_of_obs[0])
+    npars_per = nband
+
+    nobj=len(list_of_obs)
+
+    npars_tot = nobj*npars_per
+    guess = np.zeros(npars_tot)
+
+    for i,mbo in enumerate(list_of_obs):
+
+
+        beg=i*npars_per
+
+        for band, obslist in enumerate(mbo):
+            obslist=mbo[band]
+            scale = obslist[0].jacobian.scale
+            band_meta=obslist.meta
+
+            # TODO: if we get psf flux from galsim psf then we can
+            # remove the scale squared
+            flux=band_meta['psf_flux']/scale**2
+
+            if flux < 0.01:
+                flux = 0.01
+
+            flux_guess=flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
+
+            guess[beg+band] = flux_guess
 
     return guess
 

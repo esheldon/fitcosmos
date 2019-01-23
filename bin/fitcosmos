@@ -12,6 +12,8 @@ parser.add_argument('--show',action='store_true',help='plot images')
 parser.add_argument('--save',action='store_true',help='save a plot of images')
 parser.add_argument('--start', type=int, help='first FoF group to process')
 parser.add_argument('--end', type=int, help='last FoF group to process, inclusive')
+parser.add_argument('--model-pars',
+                    help='input model pars when doing flux only fitting')
 parser.add_argument('meds',nargs='+')
 
 

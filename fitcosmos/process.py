@@ -136,6 +136,14 @@ class Processor(object):
 
         mbobs.meta['masked_frac'] = util.get_masked_frac(mbobs)
 
+        if 'flux' in self.config['parspace']:
+            mname=self.config['mof']['model']
+            name = '%s_pars' % mname
+            mbobs.meta['input_model_pars'] = self.model_pars[name][index].copy()
+            mbobs.meta['input_flags'] = self.model_pars['flags'][index].copy()
+            #logger.debug('added input pars: %s' % str(mbobs.meta['input_model_pars']))
+
+
         for band,obslist in enumerate(mbobs):
             m=self.mb_meds.mlist[band]
             scale=obslist[0].jacobian.scale
@@ -511,9 +519,30 @@ class Processor(object):
                 self.mb_meds.nband,
                 self.rng,
             ) 
+        elif parspace=='galsim-flux':
+            assert self.args.model_pars is not None, \
+                'for flux fitting send model pars'
+
+            model_pars = fitsio.read(self.args.model_pars)
+            
+            mm, mmeds = eu.numpy_util.match(
+                model_pars['id'],
+                self.mb_meds.mlist[0]['id'],
+            )
+            assert mm.size == model_pars.size, \
+                'some input pars did not match'
+
+            self.model_pars = model_pars[mm]
+
+            self.fitter = fitting.MOFFluxFitterGS(
+                self.config,
+                self.mb_meds.nband,
+                self.rng,
+            ) 
+
         else:
             raise ValueError('bad parspace "%s", should be '
-                             '"ngmix" or "galsim"')
+                             '"ngmix" or "galsim" or "galsim-flux"')
 
     def _load_fofs(self):
         """
