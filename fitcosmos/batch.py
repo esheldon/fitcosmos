@@ -40,11 +40,15 @@ class FoFBatch(dict):
         fof_file = files.get_fof_file(self['run'])
         plot_file = fof_file.replace('.fits','.png')
 
+        with open(self.args.fit_config) as fobj:
+            fit_conf = yaml.load(fobj)
+
         text=_fof_script_template % {
             'fof_file':fof_file,
             'plot_file':plot_file,
             'fit_config':self.args.fit_config,
             'meds_files':self.meds_files,
+            'extra_psf_fwhm': fit_conf['fof']['extra_psf_fwhm_arcsec']
         }
 
         fof_script=files.get_fof_script_path(self['run'])
@@ -344,8 +348,10 @@ fof_file="%(fof_file)s"
 plot_file="%(plot_file)s"
 config_file="%(fit_config)s"
 meds_files="%(meds_files)s"
+extra_psf_fwhm="%(extra_psf_fwhm)f"
 
 fitcosmos-make-fofs \
+    --extra-psf-fwhm=$extra_psf_fwhm \
     --conf=$config_file \
     --plot=$plot_file \
     --output=$fof_file \
