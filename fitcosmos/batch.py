@@ -48,7 +48,7 @@ class FoFBatch(dict):
             'plot_file':plot_file,
             'fit_config':self.args.fit_config,
             'meds_files':self.meds_files,
-            'extra_psf_fwhm': fit_conf['fof']['extra_psf_fwhm_arcsec']
+            'extra_psf_fwhm': fit_conf['fofs']['extra_psf_fwhm_arcsec']
         }
 
         fof_script=files.get_fof_script_path(self['run'])
@@ -142,6 +142,11 @@ class BatchBase(dict):
         d['end'] = end
         d['meds_files'] = self.meds_files
         d['logfile'] = os.path.abspath(log_file)
+
+        if self.args.model_pars is not None:
+            d['model_pars'] = '--model-pars=%s' % self.args.model_pars
+        else:
+            d['model_pars'] = ''
 
         text=_script_template % d
 
@@ -395,6 +400,7 @@ fitcosmos \
     --fofs=$fofs \
     --start=$start \
     --end=$end \
+    %(model_pars)s \
     $meds &> $tmplog
 
 mv -vf $tmplog $logfile

@@ -11,6 +11,9 @@ parser.add_argument('--missing',action='store_true')
 parser.add_argument('--verify',action='store_true')
 parser.add_argument('meds',nargs='+')
 
+parser.add_argument('--model-pars',
+                    help='input model pars when doing flux only fitting')
+
 parser.add_argument("--loglevel", default='info',
                   help=("logging level"))
 

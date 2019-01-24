@@ -6,6 +6,7 @@ import navy
 import fitsio
 import fitcosmos
 from fitcosmos import files, split
+import esutil as eu
 import argparse
 
 parser=argparse.ArgumentParser()
@@ -62,6 +63,25 @@ def main():
                 admiral.orchestrate()
                 reports = admiral.reports
 
+                mlist=[]
+                elist=[]
+                for m, e, fname in reports:
+                    mlist.append(m)
+                    elist.append(e)
+
+                model_fits = eu.numpy_util.combine_arrlist(mlist)
+                epochs_data = eu.numpy_util.combine_arrlist(elist)
+
+                s = model_fits['id'].argsort()
+                model_fits = model_fits[s]
+
+                s = epochs_data['id'].argsort()
+                epochs_data = epochs_data[s]
+
+                fits.write(model_fits, extname='model_fits')
+                fits.write(epochs_data, extname='epochs_data')
+
+                """
                 first=True
                 for model_fits, epochs_data, fname in reports:
                     if first:
@@ -81,6 +101,7 @@ def main():
                             fits['epochs_data'].append(epochs_data)
                     else:
                         print('epochs data is None for %s' % fname)
+                """
 
     else:
         ship = navy.Ship(get_data)
