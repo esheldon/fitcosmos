@@ -66,8 +66,10 @@ def main():
                 mlist=[]
                 elist=[]
                 for m, e, fname in reports:
-                    mlist.append(m)
-                    elist.append(e)
+                    if m is not None:
+                        mlist.append(m)
+                    if e is not None:
+                        elist.append(e)
 
                 model_fits = eu.numpy_util.combine_arrlist(mlist)
                 epochs_data = eu.numpy_util.combine_arrlist(elist)
