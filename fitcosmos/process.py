@@ -146,7 +146,19 @@ class Processor(object):
 
         for band,obslist in enumerate(mbobs):
             m=self.mb_meds.mlist[band]
-            scale=obslist[0].jacobian.scale
+
+            if hasattr(self,'offsets'):
+                print('doing offsets')
+                voffset = self.offsets['voffset'][index, band]
+                uoffset = self.offsets['uoffset'][index, band]
+                for obs in obslist:
+                    j = obs.jacobian
+                    row,col = jac.get_rowcol(voffset, uoffset)
+                    jac.set_cen(row=row, col=col)
+                    obs.set_jacobian(jac)
+
+            scale = obslist[0].jacobian.scale
+
             flux_radius_arcsec = m['flux_radius'][index,1]*scale
             meta = {
                 #'Tsky': 2* (m['iso_radius_arcsec'][index]*0.5)**2,
@@ -589,3 +601,15 @@ class Processor(object):
             meta=m.get_meta()
             self.magzp_refs.append(meta['magzp_ref'][0])
 
+        if self.args.offsets is not None:
+            logger.info('reading offsets: %s' % self.args.offsets)
+            self.offsets=fitsio.read(self.args.offsets)
+
+            mo, mmeds = eu.numpy_util.match(
+                self.offsets['id'],
+                mlist[0]['id'],
+            )
+            assert mo.size == model_pars.size, \
+                'some offsets ids did not match'
+
+            self.offsets = self.offsets[mo]

@@ -14,6 +14,8 @@ parser.add_argument('--start', type=int, help='first FoF group to process')
 parser.add_argument('--end', type=int, help='last FoF group to process, inclusive')
 parser.add_argument('--model-pars',
                     help='input model pars when doing flux only fitting')
+parser.add_argument('--offsets',
+                    help='input model pars when doing flux only fitting')
 parser.add_argument('meds',nargs='+')
 
 
