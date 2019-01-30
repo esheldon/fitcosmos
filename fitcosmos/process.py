@@ -149,10 +149,16 @@ class Processor(object):
 
             if hasattr(self,'offsets'):
                 print('doing offsets')
-                voffset = self.offsets['voffset'][index, band]
-                uoffset = self.offsets['uoffset'][index, band]
+                if len(mbobs)==1:
+                    voffset = self.offsets['voffset'][index]
+                    uoffset = self.offsets['uoffset'][index]
+                else:
+                    voffset = self.offsets['voffset'][index, band]
+                    uoffset = self.offsets['uoffset'][index, band]
+
+                print('offsets:',voffset,uoffset)
                 for obs in obslist:
-                    j = obs.jacobian
+                    jac = obs.jacobian
                     row,col = jac.get_rowcol(voffset, uoffset)
                     jac.set_cen(row=row, col=col)
                     obs.set_jacobian(jac)
@@ -605,11 +611,20 @@ class Processor(object):
             logger.info('reading offsets: %s' % self.args.offsets)
             self.offsets=fitsio.read(self.args.offsets)
 
+            s=self.offsets['voffset'].shape
+            if len(s)==1:
+                nband=1
+            else:
+                nband = s[1]
+
+            assert nband==self.mb_meds.nband, \
+                'offset nbands does not match: %d vs %d' % (nband,self.mb_meds.nband)
+
             mo, mmeds = eu.numpy_util.match(
                 self.offsets['id'],
                 mlist[0]['id'],
             )
-            assert mo.size == model_pars.size, \
+            assert mo.size == mo.size, \
                 'some offsets ids did not match'
 
             self.offsets = self.offsets[mo]
