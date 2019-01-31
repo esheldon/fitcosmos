@@ -148,7 +148,7 @@ class Processor(object):
             m=self.mb_meds.mlist[band]
 
             if hasattr(self,'offsets'):
-                print('doing offsets')
+                #print('doing offsets')
                 if len(mbobs)==1:
                     voffset = self.offsets['voffset'][index]
                     uoffset = self.offsets['uoffset'][index]
@@ -156,7 +156,7 @@ class Processor(object):
                     voffset = self.offsets['voffset'][index, band]
                     uoffset = self.offsets['uoffset'][index, band]
 
-                print('offsets:',voffset,uoffset)
+                #print('offsets:',voffset,uoffset)
                 for obs in obslist:
                     jac = obs.jacobian
                     row,col = jac.get_rowcol(voffset, uoffset)

@@ -148,6 +148,11 @@ class BatchBase(dict):
         else:
             d['model_pars'] = ''
 
+        if self.args.offsets is not None:
+            d['offsets'] = '--offsets=%s' % self.args.offsets
+        else:
+            d['offsets'] = ''
+
         text=_script_template % d
 
         logger.info('script: %s' % fname)
@@ -401,6 +406,7 @@ fitcosmos \
     --start=$start \
     --end=$end \
     %(model_pars)s \
+    %(offsets)s \
     $meds &> $tmplog
 
 mv -vf $tmplog $logfile
