@@ -475,7 +475,7 @@ class Processor(object):
                     obs.weight = twt
 
     def _doplots(self, fofid, mbobs_list):
-        plt=vis.view_mbobs_list(mbobs_list, show=self.args.show)#, weight=True)
+        plt=vis.view_mbobs_list(mbobs_list, show=self.args.show, weight=True)
         if self.args.save:
             pltname='images-%06d.png' % fofid
             plt.title='FoF id: %d' % fofid

@@ -199,6 +199,7 @@ class MOFFitter(FitterBase):
                     self.rng,
                     prior=self.mof_prior,
                 )
+                #logger.debug('guess: %s' % ' '.join(['%g' % e for e in guess]))
                 fitter.go(guess)
 
                 res=fitter.get_result()
@@ -764,6 +765,7 @@ class AllPSFFluxFitter(object):
         res=fitter.get_result()
 
         if res['flags'] == 0 and res['flux_err'] > 0:
+            #logger.debug('psf flux: %g +/- %g' % (res['flux'], res['flux_err']))
             res['flux_s2n'] = res['flux']/res['flux_err']
         else:
             res['flux_s2n'] = -9999.0
