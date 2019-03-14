@@ -5,6 +5,8 @@ def view_mbobs_list(mbobs_list, **kw):
     import images
     import plotting
 
+    show = kw.get('show',False)
+
     weight=kw.get('weight',False)
     nband=len(mbobs_list[0])
 
@@ -28,7 +30,8 @@ def view_mbobs_list(mbobs_list, **kw):
             tplt=images.view_mosaic([im, wt], show=False)
             plt[row,col] = tplt
 
-        plt.show(width=2000, height=2000*aratio)
+        if show:
+            plt.show(width=2000, height=2000*aratio)
     else:
         if nband==6:
 
@@ -66,12 +69,16 @@ def view_mbobs_list(mbobs_list, **kw):
             plt=images.view_mosaic(imlist, **kw)
     return plt
 
-def compare_models(mbobs_list, fitter, **kw):
+def compare_models(fofid, mbobs_list, output, fitter, **kw):
     import biggles
     import images
     import plotting
 
+    show=kw.get('show',False)
+    save=kw.get('save',False)
+
     for iobj,mbobs in enumerate(mbobs_list):
+        id = output['id'][iobj]
         for band,obslist in enumerate(mbobs):
             for obsnum,obs in enumerate(obslist):
                 model_image = fitter.make_image(
@@ -81,7 +88,7 @@ def compare_models(mbobs_list, fitter, **kw):
                     include_nbrs=True,
                 )
 
-                title='ind: %d band: %d obs: %d' % (iobj,band,obsnum)
+                title='fof: %d id: %d band: %d obs: %d' % (fofid, id, band,obsnum)
 
                 image = obs.image
                 #wt=obs.weight.copy()
@@ -95,12 +102,17 @@ def compare_models(mbobs_list, fitter, **kw):
                 #    labels=['image','model'],
                 #    title=title,
                 #)
-                compare_images_mosaic(
+                plt=compare_images_mosaic(
                     image,
                     model_image,
                     labels=['image','model'],
                     title=title,
+                    show=show,
                 )
+                if save:
+                    fname = 'compare-fof-%d-%d-band%d-%d.png' % (fofid,id,band,obsnum)
+                    print(fname)
+                    plt.write_img(1500,1500*2.0/3.0,fname)
 
 
 
@@ -163,6 +175,7 @@ def compare_images_mosaic(im1, im2, **keys):
 
     #resid = im2-im1
     resid = im1-im2
+    mval = min(im1.min(), im2.min(), resid.min())
 
     # will only be used if type is contour
     tab=biggles.Table(2,1)
@@ -182,9 +195,9 @@ def compare_images_mosaic(im1, im2, **keys):
 
     mosaic = np.zeros( (im1.shape[0], 3*im1.shape[1]) )
     ncols = im1.shape[1]
-    mosaic[:,0:ncols] = im1
-    mosaic[:,ncols:2*ncols] = im2
-    mosaic[:,2*ncols:3*ncols] = resid
+    mosaic[:,0:ncols] = im1 - mval
+    mosaic[:,ncols:2*ncols] = im2 - mval
+    mosaic[:,2*ncols:3*ncols] = resid - mval
 
     residplt=images.view(mosaic, **tkeys)
 

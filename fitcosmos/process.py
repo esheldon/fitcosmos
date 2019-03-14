@@ -90,10 +90,11 @@ class Processor(object):
         logger.debug('doing fits')
         output, epochs_data = self.fitter.go(mbobs_list)
 
-        if self.args.save or self.args.show:
-            self._doplots_compare_model(fofid, mbobs_list)
-
         self._add_extra_outputs(indices, output, fofid)
+
+        if self.args.save or self.args.show:
+            self._doplots_compare_model(fofid, mbobs_list, output)
+
         return output, epochs_data
 
     def _add_extra_outputs(self, indices, output, fofid):
@@ -482,15 +483,22 @@ class Processor(object):
             logger.info('writing: %s' % pltname)
             plt.write(pltname,dpi=300)
 
-    def _doplots_compare_model(self, fofid, mbobs_list):
-        try:
-            mof_fitter=self.fitter.get_mof_fitter()
-            if mof_fitter is not None:
-                res=mof_fitter.get_result()
-                if res['flags']==0:
-                    vis.compare_models(mbobs_list, mof_fitter)
-        except RuntimeError:
-            logger.info('could not render model')
+    def _doplots_compare_model(self, fofid, mbobs_list, output):
+        #try:
+        mof_fitter=self.fitter.get_mof_fitter()
+        if mof_fitter is not None:
+            res=mof_fitter.get_result()
+            if res['flags']==0:
+                vis.compare_models(
+                    fofid,
+                    mbobs_list,
+                    output,
+                    mof_fitter,
+                    save=self.args.save,
+                    show=self.args.show,
+                )
+        #except RuntimeError:
+        #    logger.info('could not render model')
 
         if self.args.show:
             if 'q'==input('hit a key (q to quit): '):
